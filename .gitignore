@@ -1,0 +1,8 @@
+checkpoints/
+tmp/*
+data/*
+tmp*/
+!data/annotations/*.py
+*.txt
+configs/custom/*
+!configs/custom/code_generate.py
