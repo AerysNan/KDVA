@@ -1,8 +1,8 @@
 checkpoints/
-tmp/*
-data/*
+data/
+bin/
 tmp*/
-!data/annotations/*.py
-*.txt
 configs/custom/*
-!configs/custom/code_generate.py
+*.pb.go
+*pb2.py
+*pb2_grpc.py

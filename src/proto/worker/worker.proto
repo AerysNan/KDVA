@@ -1,0 +1,26 @@
+syntax = "proto3";
+option go_package = "./;pw";
+
+service WorkerForEdge {
+  rpc Infer (InferRequest) returns (InferResponse) {}
+}
+
+message InferRequest {
+  bytes content = 1;
+}
+
+message InferResponse {
+  repeated ClassResult result = 1;
+}
+
+message ClassResult {
+  int64 class = 1;
+  repeated BoundingBox boxes = 2;
+}
+
+message BoundingBox {
+  double x1 = 1;
+  double x2 = 2;
+  double y1 = 3;
+  double y2 = 4;
+}
