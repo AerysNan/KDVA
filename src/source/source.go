@@ -14,7 +14,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const ORINGAL_FRAMERATE = 30
+const (
+	ORINGAL_FRAMERATE = 30
+	MONITOR_INTERVAL  = time.Millisecond * 1000
+)
 
 type Source struct {
 	ps.SourceForEdgeServer
@@ -22,16 +25,20 @@ type Source struct {
 	current int
 	fps     int
 	count   int
+	sent    int
+	start   time.Time
 	datadir string
 	client  pe.EdgeForSourceClient
 	m       sync.RWMutex
 }
 
-func NewSource(path string, client pe.EdgeForSourceClient) (*Source, error) {
+func NewSource(path string, client pe.EdgeForSourceClient, fps int) (*Source, error) {
 	source := &Source{
 		m:       sync.RWMutex{},
 		current: 0,
-		fps:     ORINGAL_FRAMERATE,
+		sent:    0,
+		start:   time.Now(),
+		fps:     fps,
 		datadir: path,
 		client:  client,
 	}
@@ -51,7 +58,17 @@ func NewSource(path string, client pe.EdgeForSourceClient) (*Source, error) {
 	}
 	source.id = int(response.Id)
 	go source.sendFrameLoop()
+	go source.monitorLoop()
 	return source, nil
+}
+
+func (s *Source) monitorLoop() {
+	timer := time.NewTicker(MONITOR_INTERVAL)
+	for {
+		fps := float64(s.sent) / time.Since(s.start).Seconds()
+		logrus.Infof("Current frame: %d; Config FPS: %d fps; Actual FPS %.3f fps", s.current, s.fps, fps)
+		<-timer.C
+	}
 }
 
 func (s *Source) sendFrameLoop() {
@@ -98,6 +115,7 @@ func (s *Source) sendFrame(current int) {
 	if err != nil {
 		logrus.WithError(err).Errorf("Send frame %d failed", current)
 	}
+	s.sent++
 }
 
 func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateRequest) (*ps.SetFramerateResponse, error) {

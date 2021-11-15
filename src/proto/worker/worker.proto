@@ -19,8 +19,5 @@ message ClassResult {
 }
 
 message BoundingBox {
-  double x1 = 1;
-  double x2 = 2;
-  double y1 = 3;
-  double y2 = 4;
+  repeated double params = 1;
 }

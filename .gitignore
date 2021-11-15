@@ -2,7 +2,9 @@ checkpoints/
 data/
 bin/
 tmp*/
+result/
 configs/custom/*
 *.pb.go
 *pb2.py
 *pb2_grpc.py
+__pycache__/

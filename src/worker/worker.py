@@ -1,12 +1,16 @@
-from mmdet.apis import init_detector, inference_detector
-from proto.worker import worker_pb2, worker_pb2_grpc
-from concurrent import futures
-
 import argparse
 import logging
+import numpy as np
 import grpc
 import json
+import cv2
 import os
+
+import worker_pb2
+import worker_pb2_grpc
+
+from mmdet.apis import init_detector, inference_detector
+from concurrent import futures
 
 
 class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
@@ -18,13 +22,19 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
         self.model = model
 
     def Infer(self, request, _):
-        with open('image.jpg', 'wb') as f:
-            f.write(request.content)
-        return worker_pb2.InferResponse(result=None)
+        decoded = cv2.imdecode(np.frombuffer(request.content, np.uint8), -1)
+        class_results = inference_detector(self.model, decoded)
+        result = []
+        for class_result in class_results:
+            boxes = []
+            for box in class_result:
+                boxes.append(worker_pb2.BoundingBox(params=box))
+            result.append(worker_pb2.ClassResult(boxes=boxes))
+        return worker_pb2.InferResponse(result=result)
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Object detection')
     parser.add_argument('--model', '-m', type=str, required=True,
                         help='model use for inference')
