@@ -1,0 +1,15 @@
+syntax = "proto3";
+option go_package = "./;pt";
+
+service TrainerForCloud {
+  rpc AddFrame (AddFrameRequest) returns (AddFrameResponse) {}
+}
+
+message AddFrameRequest {
+  int64 edge = 1;
+  int64 source = 2;
+  int64 index = 3;
+  bytes content = 4;
+}
+
+message AddFrameResponse {}

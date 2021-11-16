@@ -28,18 +28,19 @@ type Source struct {
 	sent    int
 	start   time.Time
 	datadir string
+	address string
 	client  pe.EdgeForSourceClient
 	m       sync.RWMutex
 }
 
-func NewSource(path string, client pe.EdgeForSourceClient, fps int) (*Source, error) {
+func NewSource(path string, address string, fps int, client pe.EdgeForSourceClient) (*Source, error) {
 	source := &Source{
 		m:       sync.RWMutex{},
 		current: 0,
 		sent:    0,
-		start:   time.Now(),
 		fps:     fps,
 		datadir: path,
+		address: address,
 		client:  client,
 	}
 	files, err := ioutil.ReadDir(path)
@@ -52,11 +53,14 @@ func NewSource(path string, client pe.EdgeForSourceClient, fps int) (*Source, er
 			source.count++
 		}
 	}
-	response, err := client.Register(context.Background(), &pe.RegisterRequest{})
+	response, err := client.AddSource(context.Background(), &pe.AddSourceRequest{
+		Address: address,
+	})
 	if err != nil {
 		return nil, err
 	}
 	source.id = int(response.Id)
+	source.start = time.Now()
 	go source.sendFrameLoop()
 	go source.monitorLoop()
 	return source, nil
@@ -87,9 +91,11 @@ func (s *Source) sendFrameLoop() {
 		s.current += stride
 		if s.current >= s.count {
 			logrus.Warnf("Stream %d exited since all frames are sent to edge", s.id)
-			s.client.Terminate(context.Background(), &pe.TerminateRequest{
+			if _, err := s.client.RemoveSource(context.Background(), &pe.RemoveSourceRequest{
 				Id: int64(s.id),
-			})
+			}); err != nil {
+				logrus.WithError(err).Error("Failed to disconnect from edge")
+			}
 			os.Exit(0)
 		}
 	}
@@ -108,8 +114,8 @@ func (s *Source) sendFrame(current int) {
 		return
 	}
 	_, err = s.client.SendFrame(context.Background(), &pe.SendFrameRequest{
-		Id:      int64(s.id),
-		Current: int64(current),
+		Source:  int64(s.id),
+		Index:   int64(current),
 		Content: content,
 	})
 	if err != nil {

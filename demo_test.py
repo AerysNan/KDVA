@@ -37,7 +37,7 @@ start = time.time()
 for i in range(datasets[args.dataset]):
     image = f'data/{args.dataset}/{i:06d}.jpg'
     result = inference_detector(model, image)
-    with open(f'result/{args.dataset}_{i}.pkl', 'wb') as f:
+    with open(f'dump/{args.dataset}_{i}.pkl', 'wb') as f:
         pickle.dump(result, f)
     fps = (i + 1) / (time.time() - start)
     print(f'Current throughput: {fps:.2f}')

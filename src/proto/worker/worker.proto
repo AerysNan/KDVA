@@ -3,10 +3,14 @@ option go_package = "./;pw";
 
 service WorkerForEdge {
   rpc Infer (InferRequest) returns (InferResponse) {}
+  rpc AddModel (AddModelRequest) returns (AddModelResponse) {}
+  rpc RemoveModel (RemoveModelRequest) returns (RemoveModelResponse) {}
+  rpc UpdateModel (UpdateModelRequest) returns (UpdateModelResponse) {}
 }
 
 message InferRequest {
-  bytes content = 1;
+  int64 source = 1;
+  bytes content = 2;
 }
 
 message InferResponse {
@@ -21,3 +25,22 @@ message ClassResult {
 message BoundingBox {
   repeated double params = 1;
 }
+
+message UpdateModelRequest {
+  int64 source = 1;
+  string path = 2;
+}
+
+message UpdateModelResponse {}
+
+message AddModelRequest {
+  int64 source = 1;
+}
+
+message AddModelResponse {}
+
+message RemoveModelRequest {
+  int64 source = 1;
+}
+
+message RemoveModelResponse {}

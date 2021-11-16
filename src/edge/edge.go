@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 	"time"
+	pc "vakd/proto/cloud"
+
 	pe "vakd/proto/edge"
 	ps "vakd/proto/source"
 	pw "vakd/proto/worker"
@@ -20,42 +22,63 @@ var (
 	ErrSourceNotFound = errors.New("source ID not found")
 )
 
-const MONITOR_INTERVAL = time.Millisecond * 1000
+const (
+	ORINGAL_FRAMERATE = 30
+	MONITOR_INTERVAL  = time.Millisecond * 1000
+)
 
 type Frame struct {
-	id      int
+	index   int
 	source  int
 	content []byte
 }
 
-type Stream struct {
+type Source struct {
 	m         sync.RWMutex
 	id        int
+	uploadFPS int
 	received  int
 	processed int
+	disabled  bool
 	start     time.Time
 	client    ps.SourceForEdgeClient
 }
 
 type Edge struct {
 	pe.EdgeForSourceServer
-	m       sync.RWMutex
-	index   int
-	streams []*Stream
-	client  pw.WorkerForEdgeClient
-	buffer  chan *Frame
+	pe.EdgeForCloudServer
+	m            sync.RWMutex
+	id           int
+	index        int
+	address      string
+	sources      map[int]*Source
+	inferBuffer  chan *Frame
+	uploadBuffer chan *Frame
+	workerClient pw.WorkerForEdgeClient
+	cloudClient  pc.CloudForEdgeClient
 }
 
-func NewEdge(client pw.WorkerForEdgeClient) (*Edge, error) {
+func NewEdge(address string, workerClient pw.WorkerForEdgeClient, cloudClient pc.CloudForEdgeClient) (*Edge, error) {
 	edge := &Edge{
-		index:   0,
-		streams: make([]*Stream, 0),
-		client:  client,
-		m:       sync.RWMutex{},
-		buffer:  make(chan *Frame, 100),
+		m:            sync.RWMutex{},
+		index:        0,
+		address:      address,
+		sources:      make(map[int]*Source),
+		inferBuffer:  make(chan *Frame),
+		uploadBuffer: make(chan *Frame),
+		workerClient: workerClient,
+		cloudClient:  cloudClient,
 	}
+	response, err := cloudClient.AddEdge(context.Background(), &pc.AddEdgeRequest{
+		Address: address,
+	})
+	if err != nil {
+		return nil, err
+	}
+	edge.id = int(response.Id)
 	go edge.inferenceLoop()
 	go edge.monitorLoop()
+	go edge.uploadLoop()
 	return edge, nil
 }
 
@@ -65,57 +88,83 @@ func (e *Edge) monitorLoop() {
 		func() {
 			e.m.RLock()
 			defer e.m.RUnlock()
-			if len(e.streams) == 0 {
-				return
-			}
 			throughput := 0.0
 			maxDelay := -1
-			for _, stream := range e.streams {
-				stream.m.RLock()
-				fps := float64(stream.processed) / time.Since(stream.start).Seconds()
-				if stream.received-stream.processed > maxDelay {
-					maxDelay = stream.received - stream.processed
+			count := 0
+			for _, source := range e.sources {
+				if source.disabled {
+					continue
+				}
+				count++
+				source.m.RLock()
+				fps := float64(source.processed) / time.Since(source.start).Seconds()
+				if source.received-source.processed > maxDelay {
+					maxDelay = source.received - source.processed
 				}
 				throughput += fps
-				stream.m.RUnlock()
+				source.m.RUnlock()
 			}
-			logrus.Infof("Current throughput: %.2f fps; Max delay: %d frames", throughput, maxDelay)
+			if count != 0 {
+				logrus.Infof("Source: %d; Throughput: %.2f fps; Delay: %d frames", count, throughput, maxDelay)
+			}
 		}()
 		<-timer.C
 	}
 }
+
+func (e *Edge) uploadLoop() {
+	for {
+		frame := <-e.uploadBuffer
+		_, err := e.cloudClient.UploadFrame(context.Background(), &pc.UploadFrameRequest{
+			Edge:    int64(e.id),
+			Source:  int64(frame.source),
+			Index:   int64(frame.index),
+			Content: frame.content,
+		})
+		if err != nil {
+			logrus.WithError(err).Errorf("Upload frame %d of source %d failed", frame.index, frame.source)
+		}
+	}
+}
+
 func (e *Edge) inferenceLoop() {
 	for {
 		func(frame *Frame) {
 			e.m.RLock()
 			defer e.m.RUnlock()
-			stream, i := e.findStream(frame.source)
-			if i < 0 {
+			source, ok := e.sources[frame.source]
+			if !ok {
 				logrus.WithError(ErrSourceNotFound).Errorf("Inference source %d not found", frame.source)
 				return
 			}
-			response, err := e.client.Infer(context.Background(), &pw.InferRequest{
+			response, err := e.workerClient.Infer(context.Background(), &pw.InferRequest{
+				Source:  int64(source.id),
 				Content: frame.content,
 			})
 			if err != nil {
-				logrus.WithError(err).Errorf("Infer frame %d on source %d failed", frame.id, frame.source)
+				logrus.WithError(err).Errorf("Infer frame %d on source %d failed", frame.index, frame.source)
 				return
 			}
 			bytes := e.responseToJSON(response)
-			file, err := os.OpenFile(fmt.Sprintf("result/%d_%d.json", frame.source, frame.id), os.O_CREATE|os.O_WRONLY, 0777)
+			file, err := os.OpenFile(fmt.Sprintf("dump/result/%d_%d/%d.json", e.id, frame.source, frame.index), os.O_CREATE|os.O_WRONLY, 0777)
 			if err != nil {
-				logrus.WithError(err).Errorf("Open dump file for frame %d on source %d failed", frame.id, frame.source)
+				logrus.WithError(err).Errorf("Open dump file for frame %d on source %d failed", frame.index, frame.source)
 				return
 			}
 			defer file.Close()
 			if _, err = file.Write(bytes); err != nil {
-				logrus.WithError(err).Errorf("Dump inference result for frame %d on source %d failed", frame.id, frame.source)
+				logrus.WithError(err).Errorf("Dump inference result for frame %d on source %d failed", frame.index, frame.source)
 				return
 			}
-			stream.m.Lock()
-			defer stream.m.Unlock()
-			stream.processed++
-		}(<-e.buffer)
+			source.m.Lock()
+			defer source.m.Unlock()
+			source.processed++
+			if frame.index%(ORINGAL_FRAMERATE/source.uploadFPS) == 0 {
+				go func() {
+					e.uploadBuffer <- frame
+				}()
+			}
+		}(<-e.inferBuffer)
 	}
 }
 
@@ -136,7 +185,7 @@ func (e *Edge) responseToJSON(response *pw.InferResponse) []byte {
 	return bytes
 }
 
-func (e *Edge) Register(ctx context.Context, request *pe.RegisterRequest) (*pe.RegisterResponse, error) {
+func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe.AddSourceResponse, error) {
 	connection, err := grpc.Dial(request.Address, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -144,60 +193,92 @@ func (e *Edge) Register(ctx context.Context, request *pe.RegisterRequest) (*pe.R
 	client := ps.NewSourceForEdgeClient(connection)
 	e.m.Lock()
 	defer e.m.Unlock()
-	stream := &Stream{
+	source := &Source{
 		m:         sync.RWMutex{},
 		id:        e.index,
-		start:     time.Now(),
+		disabled:  false,
+		uploadFPS: 1,
 		received:  0,
 		processed: 0,
 		client:    client,
 	}
+	if _, err = e.workerClient.AddModel(context.Background(), &pw.AddModelRequest{
+		Source: int64(source.id),
+	}); err != nil {
+		return nil, err
+	}
 	e.index++
-	e.streams = append(e.streams, stream)
-	logrus.Infof("Connected with source %d", stream.id)
-	return &pe.RegisterResponse{
-		Id: int64(stream.id),
+	source.start = time.Now()
+	e.sources[source.id] = source
+	logrus.Infof("Connected with source %d", source.id)
+	os.MkdirAll(fmt.Sprintf("dump/result/%d_%d", e.id, source.id), 0777)
+	os.MkdirAll(fmt.Sprintf("dump/model/%d_%d", e.id, source.id), 0777)
+	return &pe.AddSourceResponse{
+		Id: int64(source.id),
 	}, nil
 }
 
-func (e *Edge) findStream(id int) (*Stream, int) {
-	for i, stream := range e.streams {
-		if stream.id == id {
-			return stream, i
-		}
-	}
-	return nil, -1
-}
-
-func (e *Edge) Terminate(ctx context.Context, request *pe.TerminateRequest) (*pe.TerminateResponse, error) {
+func (e *Edge) RemoveSource(ctx context.Context, request *pe.RemoveSourceRequest) (*pe.RemoveSourceResponse, error) {
 	id := int(request.Id)
 	e.m.Lock()
 	defer e.m.Unlock()
-	_, i := e.findStream(id)
-	if i < 0 {
+	source, ok := e.sources[id]
+	if !ok {
 		return nil, ErrSourceNotFound
 	}
-	e.streams = append(e.streams[:i], e.streams[i+1:]...)
+	// if _, err := e.workerClient.RemoveModel(context.Background(), &pw.RemoveModelRequest{
+	// 	Source: int64(id),
+	// }); err != nil {
+	// 	return nil, err
+	// }
+	source.disabled = true
 	logrus.Infof("Disconnected with source %d", id)
-	return &pe.TerminateResponse{}, nil
+	return &pe.RemoveSourceResponse{}, nil
 }
 
 func (e *Edge) SendFrame(ctx context.Context, request *pe.SendFrameRequest) (*pe.SendFrameResponse, error) {
-	id := int(request.Id)
+	id := int(request.Source)
 	e.m.RLock()
 	defer e.m.RUnlock()
-	stream, i := e.findStream(id)
-	if i < 0 {
+	source, ok := e.sources[id]
+	if !ok {
 		return nil, ErrSourceNotFound
 	}
-	e.buffer <- &Frame{
-		id:      int(request.Current),
-		source:  id,
-		content: request.Content,
-	}
-	logrus.Debugf("Received frame %d from stream %d", request.Current, id)
-	stream.m.Lock()
-	defer stream.m.Unlock()
-	stream.received++
+	go func() {
+		e.inferBuffer <- &Frame{
+			index:   int(request.Index),
+			source:  id,
+			content: request.Content,
+		}
+	}()
+	logrus.Debugf("Received frame %d from stream %d", request.Index, id)
+	source.m.Lock()
+	defer source.m.Unlock()
+	source.received++
 	return &pe.SendFrameResponse{}, nil
+}
+
+func (e *Edge) LoadModel(ctx context.Context, request *pe.LoadModelRequest) (*pe.LoadModelResponse, error) {
+	id := int(request.Source)
+	if _, ok := e.sources[id]; !ok {
+		return nil, ErrSourceNotFound
+	}
+	path := fmt.Sprintf("dump/model/%d_%d/%d.pth", e.id, request.Source, request.Epoch)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	_, err = file.Write(request.Model)
+	if err != nil {
+		return nil, err
+	}
+	_, err = e.workerClient.UpdateModel(context.Background(), &pw.UpdateModelRequest{
+		Source: request.Source,
+		Path:   path,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pe.LoadModelResponse{}, nil
 }

@@ -13,7 +13,7 @@ args = parser.parse_args()
 with open(args.path) as f:
     dataset = json.load(f)
 for prefix in dataset:
-    k = 500
+    k = 1800
     n = dataset[prefix] // k
 
     annotation_all = json.load(open(f'data/annotations/{prefix}.json'))
@@ -60,9 +60,9 @@ for prefix in dataset:
         offset = image['id'] % k
         if epoch >= n:
             continue
-        if offset % 10 == 0:
+        if offset % 30 == 0:
             annotation_train_list[epoch]['images'].append(image)
-        elif offset % 50 == 25:
+        elif offset % 150 == 75:
             annotation_val_list[epoch]['images'].append(image)
 
     for annotation in annotation_golden['annotations']:
@@ -70,9 +70,9 @@ for prefix in dataset:
         offset = annotation['image_id'] % k
         if epoch >= n:
             continue
-        if offset % 10 == 0:
+        if offset % 30 == 0:
             annotation_train_list[epoch]['annotations'].append(annotation)
-        elif offset % 50 == 25:
+        elif offset % 150 == 75:
             annotation_val_list[epoch]['annotations'].append(annotation)
 
     for epoch in range(n):
@@ -82,10 +82,10 @@ for prefix in dataset:
         for i in range(epoch*k, epoch*k+k):
             copyfile(f'data/{prefix}/{i:06}.jpg',
                      f'data/{prefix}_test_{epoch}/{i:06}.jpg')
-            if i % 10 == 0:
+            if i % 30 == 0:
                 copyfile(f'data/{prefix}/{i:06}.jpg',
                          f'data/{prefix}_train_{epoch}/{i:06}.jpg')
-            elif i % 50 == 25:
+            elif i % 150 == 75:
                 copyfile(f'data/{prefix}/{i:06}.jpg',
                          f'data/{prefix}_val_{epoch}/{i:06}.jpg')
         with open(f'data/annotations/{prefix}_train_{epoch}.json', 'w') as f:

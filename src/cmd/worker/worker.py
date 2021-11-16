@@ -6,24 +6,52 @@ import json
 import cv2
 import os
 
+import rwlock
 import worker_pb2
 import worker_pb2_grpc
 
 from mmdet.apis import init_detector, inference_detector
 from concurrent import futures
 
+lock = rwlock.RWLock()
+
 
 class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
     def __init__(self, model_name, gpu_name):
         models = json.load(open(f'{os.getcwd()}/data/model.json'))
-        config_file = f"{os.getcwd()}/configs/{models[model_name]['config']}"
-        checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
-        model = init_detector(config_file, checkpoint_file, device=gpu_name)
-        self.model = model
+        self.config_file = f"{os.getcwd()}/configs/{models[model_name]['config']}"
+        self.checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
+        self.gpu_name = gpu_name
+        self.model_dict = {}
+
+    def AddModel(self, request, _):
+        logging.info(f'Add new model for source {request.source}')
+        self.model_dict[request.source] = init_detector(
+            self.config_file, self.checkpoint_file, self.gpu_name)
+        return worker_pb2.AddModelResponse()
+
+    def RemoveModel(self, request, _):
+        logging.info(f'Remove model for source {request.source}')
+        del self.model_dict[request.source]
+        return worker_pb2.RemoveModelResponse()
+
+    def UpdateModel(self, request, _):
+        logging.info(
+            f'Update model for source {request.source} at path {request.path}')
+        model = init_detector(self.config_file, request.path, self.gpu_name)
+        global lock
+        lock.w_acquire()
+        self.model_dict[request.source] = model
+        lock.w_release()
+        return worker_pb2.UpdateModelResponse()
 
     def Infer(self, request, _):
         decoded = cv2.imdecode(np.frombuffer(request.content, np.uint8), -1)
-        class_results = inference_detector(self.model, decoded)
+        global lock
+        lock.r_acquire()
+        class_results = inference_detector(
+            self.model_dict[request.source], decoded)
+        lock.r_release()
         result = []
         for class_result in class_results:
             boxes = []
@@ -36,7 +64,7 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Object detection')
-    parser.add_argument('--model', '-m', type=str, required=True,
+    parser.add_argument('--model', '-m', type=str, default='mobilenet',
                         help='model use for inference')
     parser.add_argument('--port', '-p', type=str, default='8086',
                         help='model use for inference')

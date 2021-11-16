@@ -1,2 +1,43 @@
 syntax = "proto3";
 option go_package = "./;pc";
+
+service CloudForEdge{
+  rpc AddEdge (AddEdgeRequest) returns (AddEdgeResponse) {}
+  rpc UploadFrame (UploadFrameRequest) returns (UploadFrameResponse) {}
+  rpc RemoveEdge (RemoveEdgeRequest) returns (RemoveEdgeResponse) {}
+}
+
+message AddEdgeRequest {
+  string address = 1;
+}
+
+message AddEdgeResponse {
+  int64 id = 1;
+}
+
+message UploadFrameRequest {
+  int64 edge = 1;
+  int64 source = 2;
+  int64 index = 3;
+  bytes content = 4;
+}
+
+message UploadFrameResponse {}
+
+message RemoveEdgeRequest {
+  int64 id = 1;
+}
+
+message RemoveEdgeResponse {}
+
+service CloudForTrainer {
+  rpc DeliverModel (DeliverModelRequest) returns (DeliverModelResponse) {}
+}
+
+message DeliverModelRequest {
+  string prefix = 1;
+  int64 epoch = 2;
+  bytes model = 3;
+}
+
+message DeliverModelResponse {}

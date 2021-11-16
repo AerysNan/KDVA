@@ -2,29 +2,41 @@ syntax = "proto3";
 option go_package = "./;pe";
 
 service EdgeForSource {
-  rpc Register (RegisterRequest) returns (RegisterResponse) {}
+  rpc AddSource (AddSourceRequest) returns (AddSourceResponse) {}
   rpc SendFrame (SendFrameRequest) returns (SendFrameResponse) {}
-  rpc Terminate(TerminateRequest) returns(TerminateResponse){}
+  rpc RemoveSource(RemoveSourceRequest) returns(RemoveSourceResponse){}
 }
 
-message RegisterRequest {
+message AddSourceRequest {
   string address = 1;
 }
 
-message RegisterResponse {
+message AddSourceResponse {
   int64 id = 1;
 }
 
 message SendFrameRequest {
-  int64 id = 1;
-  int64 current = 2;
+  int64 source = 1;
+  int64 index = 2;
   bytes content = 3;
 }
 
 message SendFrameResponse {}
 
-message TerminateRequest {
+message RemoveSourceRequest {
   int64 id = 1;
 }
 
-message TerminateResponse {}
+message RemoveSourceResponse {}
+
+service EdgeForCloud {
+  rpc LoadModel (LoadModelRequest) returns (LoadModelResponse) {}
+}
+
+message LoadModelRequest {
+  int64 source = 1;
+  int64 epoch = 2;
+  bytes model = 3;
+}
+
+message LoadModelResponse {}

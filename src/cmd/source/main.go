@@ -33,11 +33,11 @@ func main() {
 	}
 	defer edgeConnection.Close()
 	edgeClient := pe.NewEdgeForSourceClient(edgeConnection)
-	sourceServer, err := source.NewSource(*dir, edgeClient, *fps)
+	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
+	sourceServer, err := source.NewSource(*dir, listenAddress, *fps, edgeClient)
 	if err != nil {
 		logrus.WithError(err).Fatalf("Create source server failed")
 	}
-	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
 	listen, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		logrus.WithError(err).Fatalf("Listen to port %s failed", *port)
