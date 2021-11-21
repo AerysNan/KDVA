@@ -18,7 +18,7 @@ args = parser.parse_args()
 result = []
 for i in range(args.count):
     with open(f'{args.dir}/{args.prefix}_{i}.{args.format}', 'rb') as f:
-        if args.format == 'pickle':
+        if args.format == 'pkl':
             o = pickle.load(f)
             result += o
         else:

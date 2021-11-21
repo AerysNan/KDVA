@@ -10,6 +10,7 @@ message AddFrameRequest {
   int64 source = 2;
   int64 index = 3;
   bytes content = 4;
+  bytes annotation = 5;
 }
 
 message AddFrameResponse {}

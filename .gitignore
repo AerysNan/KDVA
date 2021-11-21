@@ -3,8 +3,10 @@ data/
 bin/
 tmp*/
 dump/
+models/
+__pycache__/
 configs/custom/*
 *.pb.go
 *pb2.py
 *pb2_grpc.py
-__pycache__/
+out*.txt

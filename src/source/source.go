@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	ORINGAL_FRAMERATE = 30
+	ORINGAL_FRAMERATE = 10
 	MONITOR_INTERVAL  = time.Millisecond * 1000
 )
 
@@ -55,6 +55,7 @@ func NewSource(path string, address string, fps int, client pe.EdgeForSourceClie
 	}
 	response, err := client.AddSource(context.Background(), &pe.AddSourceRequest{
 		Address: address,
+		Fps:     int64(fps),
 	})
 	if err != nil {
 		return nil, err

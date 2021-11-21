@@ -14,16 +14,7 @@ message InferRequest {
 }
 
 message InferResponse {
-  repeated ClassResult result = 1;
-}
-
-message ClassResult {
-  int64 class = 1;
-  repeated BoundingBox boxes = 2;
-}
-
-message BoundingBox {
-  repeated double params = 1;
+  bytes result = 1;
 }
 
 message UpdateModelRequest {

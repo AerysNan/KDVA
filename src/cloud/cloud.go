@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -93,27 +92,26 @@ func (c *Cloud) UploadFrame(ctx context.Context, request *pc.UploadFrameRequest)
 	if _, ok := c.edges[id]; !ok {
 		return nil, ErrEdgeNotFound
 	}
-	if _, err := c.client.AddFrame(context.Background(), &pt.AddFrameRequest{
-		Edge:    request.Edge,
-		Source:  request.Source,
-		Index:   request.Index,
-		Content: request.Content,
-	}); err != nil {
+	_, err := c.client.AddFrame(context.Background(), &pt.AddFrameRequest{
+		Edge:       request.Edge,
+		Source:     request.Source,
+		Index:      request.Index,
+		Content:    request.Content,
+		Annotation: request.Annotation,
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &pc.UploadFrameResponse{}, nil
 }
 
 func (c *Cloud) DeliverModel(ctx context.Context, request *pc.DeliverModelRequest) (*pc.DeliverModelResponse, error) {
-	prefix := request.Prefix
-	var edgeID, sourceID int
-	fmt.Sscanf(prefix, "%d_%d", &edgeID, &sourceID)
-	edge, ok := c.edges[edgeID]
+	edge, ok := c.edges[int(request.Edge)]
 	if !ok {
 		return nil, ErrEdgeNotFound
 	}
 	_, err := edge.client.LoadModel(context.Background(), &pe.LoadModelRequest{
-		Source: int64(sourceID),
+		Source: request.Source,
 		Epoch:  request.Epoch,
 		Model:  request.Model,
 	})
@@ -121,4 +119,9 @@ func (c *Cloud) DeliverModel(ctx context.Context, request *pc.DeliverModelReques
 		return nil, err
 	}
 	return &pc.DeliverModelResponse{}, nil
+}
+
+func (c *Cloud) ReportAccuracy(ctx context.Context, request *pc.ReportAccuracyRequest) (*pc.ReportAccuracyResponse, error) {
+	logrus.Infof("Receive accuracy report for edge %d source %d [%d, %d] accuracy %.2f", request.Edge, request.Source, request.Begin, request.End, request.Accuracy)
+	return &pc.ReportAccuracyResponse{}, nil
 }

@@ -1,5 +1,6 @@
 import argparse
 import logging
+import pickle
 import numpy as np
 import grpc
 import json
@@ -52,12 +53,7 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
         class_results = inference_detector(
             self.model_dict[request.source], decoded)
         lock.r_release()
-        result = []
-        for class_result in class_results:
-            boxes = []
-            for box in class_result:
-                boxes.append(worker_pb2.BoundingBox(params=box))
-            result.append(worker_pb2.ClassResult(boxes=boxes))
+        result = pickle.dumps(class_results)
         return worker_pb2.InferResponse(result=result)
 
 

@@ -90,6 +90,7 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--dataset', '-d', help='customized dataset name', type=str, default=None)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -173,6 +174,10 @@ def main():
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
         json_file = osp.join(args.work_dir, f'eval_{timestamp}.json')
 
+    # overwrite test configuration
+    if args.dataset is not None:
+        cfg.data.test.ann_file = f'data/annotations/{args.dataset}.json'
+        cfg.data.test.img_prefix = f'data/{args.dataset}'
     # build the dataloader
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
