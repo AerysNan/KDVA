@@ -44,9 +44,9 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
         lock.w_acquire()
         self.model_dict[request.source] = model
         lock.w_release()
-        return worker_pb2.UpdateModelResponse()
+        return worker_pb2.EdgeUpdateModelResponse()
 
-    def Infer(self, request, _):
+    def InferFrame(self, request, _):
         decoded = cv2.imdecode(np.frombuffer(request.content, np.uint8), -1)
         global lock
         lock.r_acquire()
@@ -54,7 +54,7 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
             self.model_dict[request.source], decoded)
         lock.r_release()
         result = pickle.dumps(class_results)
-        return worker_pb2.InferResponse(result=result)
+        return worker_pb2.InferFrameResponse(result=result)
 
 
 if __name__ == '__main__':

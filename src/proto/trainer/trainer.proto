@@ -2,10 +2,10 @@ syntax = "proto3";
 option go_package = "./;pt";
 
 service TrainerForCloud {
-  rpc AddFrame (AddFrameRequest) returns (AddFrameResponse) {}
+  rpc SendFrame (CloudSendFrameRequest) returns (CloudSendFrameResponse) {}
 }
 
-message AddFrameRequest {
+message CloudSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 index = 3;
@@ -13,4 +13,4 @@ message AddFrameRequest {
   bytes annotation = 5;
 }
 
-message AddFrameResponse {}
+message CloudSendFrameResponse {}

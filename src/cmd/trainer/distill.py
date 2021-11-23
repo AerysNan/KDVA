@@ -26,7 +26,7 @@ class FakeDistillThread(threading.Thread):
         prefix = f'{self.edge}_{self.source}'
         print(f'Finish distillation {prefix} on epoch {self.epoch}')
         with open(f'models/{self.name}/{self.epoch + 1}.pth', 'rb') as f:
-            self.client.DeliverModel(cloud_pb2.DeliverModelRequest(
+            self.client.UpdateModel(cloud_pb2.TrainerUpdateModelRequest(
                 edge=self.edge,
                 source=self.source,
                 epoch=self.epoch,
@@ -64,7 +64,7 @@ class DistillThread(threading.Thread):
         train_detector(model, dataset, cfg)
         print(f'Finish distillation {prefix} on epoch {self.epoch}')
         with open(f'dump/distill/{prefix}/epoch_{self.epoch}/latest.pth', 'rb') as f:
-            self.client.DeliverModel(cloud_pb2.DeliverModelRequest(
+            self.client.UpdateModel(cloud_pb2.TrainerUpdateModelRequest(
                 edge=self.edge,
                 source=self.source,
                 epoch=self.epoch,

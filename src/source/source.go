@@ -15,33 +15,34 @@ import (
 )
 
 const (
-	ORINGAL_FRAMERATE = 10
-	MONITOR_INTERVAL  = time.Millisecond * 1000
+	MONITOR_INTERVAL = time.Millisecond * 1000
 )
 
 type Source struct {
 	ps.SourceForEdgeServer
-	id      int
-	current int
-	fps     int
-	count   int
-	sent    int
-	start   time.Time
-	datadir string
-	address string
-	client  pe.EdgeForSourceClient
-	m       sync.RWMutex
+	id           int
+	currentIndex int
+	originalFPS  int
+	currentFPS   int
+	count        int
+	sent         int
+	start        time.Time
+	datadir      string
+	address      string
+	client       pe.EdgeForSourceClient
+	m            sync.RWMutex
 }
 
 func NewSource(path string, address string, fps int, client pe.EdgeForSourceClient) (*Source, error) {
 	source := &Source{
-		m:       sync.RWMutex{},
-		current: 0,
-		sent:    0,
-		fps:     fps,
-		datadir: path,
-		address: address,
-		client:  client,
+		m:            sync.RWMutex{},
+		currentIndex: 0,
+		sent:         0,
+		originalFPS:  fps,
+		currentFPS:   fps,
+		datadir:      path,
+		address:      address,
+		client:       client,
 	}
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
@@ -71,33 +72,44 @@ func (s *Source) monitorLoop() {
 	timer := time.NewTicker(MONITOR_INTERVAL)
 	for {
 		fps := float64(s.sent) / time.Since(s.start).Seconds()
-		logrus.Infof("Current frame: %d; Config FPS: %d fps; Actual FPS %.3f fps", s.current, s.fps, fps)
+		logrus.Infof("Current frame: %d; Config FPS: %d fps; Actual FPS %.3f fps", s.currentIndex, s.currentFPS, fps)
 		<-timer.C
 	}
 }
 
 func (s *Source) sendFrameLoop() {
 	s.m.RLock()
-	duration := time.Second / time.Duration(s.fps)
+	duration := time.Second / time.Duration(s.currentFPS)
 	s.m.RUnlock()
 	timer := time.NewTimer(duration)
 	for {
-		<-timer.C
 		s.m.RLock()
-		duration = time.Second / time.Duration(s.fps)
-		stride := ORINGAL_FRAMERATE / s.fps
+		strideList := make([]int, s.currentFPS)
+		remainder := s.originalFPS
+		for i := 0; i < s.currentFPS; i++ {
+			strideList[i] = s.originalFPS / s.currentFPS
+			remainder -= strideList[i]
+		}
+		for i, index := 0, 0; i < remainder; i++ {
+			strideList[index]++
+			index += s.currentFPS / remainder
+		}
+		duration = time.Second / time.Duration(s.currentFPS)
 		s.m.RUnlock()
-		timer.Reset(duration)
-		s.sendFrame(s.current)
-		s.current += stride
-		if s.current >= s.count {
-			logrus.Warnf("Stream %d exited since all frames are sent to edge", s.id)
-			if _, err := s.client.RemoveSource(context.Background(), &pe.RemoveSourceRequest{
-				Id: int64(s.id),
-			}); err != nil {
-				logrus.WithError(err).Error("Failed to disconnect from edge")
+		for i := 0; i < s.currentFPS; i++ {
+			<-timer.C
+			timer.Reset(duration)
+			s.sendFrame(s.currentIndex)
+			s.currentIndex += strideList[i]
+			if s.currentIndex >= s.count {
+				logrus.Warnf("Stream %d exited since all frames are sent to edge", s.id)
+				if _, err := s.client.RemoveSource(context.Background(), &pe.RemoveSourceRequest{
+					Id: int64(s.id),
+				}); err != nil {
+					logrus.WithError(err).Error("Failed to disconnect from edge")
+				}
+				os.Exit(0)
 			}
-			os.Exit(0)
 		}
 	}
 }
@@ -114,7 +126,7 @@ func (s *Source) sendFrame(current int) {
 		logrus.WithError(err).Errorf("Read frame %d failed", current)
 		return
 	}
-	_, err = s.client.SendFrame(context.Background(), &pe.SendFrameRequest{
+	_, err = s.client.SendFrame(context.Background(), &pe.SourceSendFrameRequest{
 		Source:  int64(s.id),
 		Index:   int64(current),
 		Content: content,
@@ -127,7 +139,7 @@ func (s *Source) sendFrame(current int) {
 
 func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateRequest) (*ps.SetFramerateResponse, error) {
 	s.m.Lock()
-	s.fps = int(request.FrameRate)
+	s.currentFPS = int(request.FrameRate)
 	s.m.Unlock()
 	return &ps.SetFramerateResponse{}, nil
 }

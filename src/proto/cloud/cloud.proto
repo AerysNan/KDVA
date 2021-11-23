@@ -3,7 +3,7 @@ option go_package = "./;pc";
 
 service CloudForEdge{
   rpc AddEdge (AddEdgeRequest) returns (AddEdgeResponse) {}
-  rpc UploadFrame (UploadFrameRequest) returns (UploadFrameResponse) {}
+  rpc SendFrame (EdgeSendFrameRequest) returns (EdgeSendFrameResponse) {}
   rpc RemoveEdge (RemoveEdgeRequest) returns (RemoveEdgeResponse) {}
 }
 
@@ -15,7 +15,7 @@ message AddEdgeResponse {
   int64 id = 1;
 }
 
-message UploadFrameRequest {
+message EdgeSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 index = 3;
@@ -23,7 +23,7 @@ message UploadFrameRequest {
   bytes annotation = 5;
 }
 
-message UploadFrameResponse {
+message EdgeSendFrameResponse {
   double accuracy = 1;
 }
 
@@ -34,20 +34,20 @@ message RemoveEdgeRequest {
 message RemoveEdgeResponse {}
 
 service CloudForTrainer {
-  rpc DeliverModel (DeliverModelRequest) returns (DeliverModelResponse) {}
-  rpc ReportAccuracy (ReportAccuracyRequest) returns (ReportAccuracyResponse) {}
+  rpc UpdateModel (TrainerUpdateModelRequest) returns (TrainerUpdateModelResponse) {}
+  rpc ReportProfile (TrainerReportProfileRequest) returns (TrainerReportProfileResponse) {}
 }
 
-message DeliverModelRequest {
+message TrainerUpdateModelRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 epoch = 3;
   bytes model = 4;
 }
 
-message DeliverModelResponse {}
+message TrainerUpdateModelResponse {}
 
-message ReportAccuracyRequest {
+message TrainerReportProfileRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 begin = 3;
@@ -55,4 +55,4 @@ message ReportAccuracyRequest {
   double accuracy = 5;
 }
 
-message ReportAccuracyResponse {}
+message TrainerReportProfileResponse {}

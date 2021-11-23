@@ -85,14 +85,14 @@ func (c *Cloud) RemoveEdge(ctx context.Context, request *pc.RemoveEdgeRequest) (
 	return &pc.RemoveEdgeResponse{}, nil
 }
 
-func (c *Cloud) UploadFrame(ctx context.Context, request *pc.UploadFrameRequest) (*pc.UploadFrameResponse, error) {
+func (c *Cloud) SendFrame(ctx context.Context, request *pc.EdgeSendFrameRequest) (*pc.EdgeSendFrameResponse, error) {
 	id := int(request.Edge)
 	c.m.RLock()
 	defer c.m.RUnlock()
 	if _, ok := c.edges[id]; !ok {
 		return nil, ErrEdgeNotFound
 	}
-	_, err := c.client.AddFrame(context.Background(), &pt.AddFrameRequest{
+	_, err := c.client.SendFrame(context.Background(), &pt.CloudSendFrameRequest{
 		Edge:       request.Edge,
 		Source:     request.Source,
 		Index:      request.Index,
@@ -102,15 +102,15 @@ func (c *Cloud) UploadFrame(ctx context.Context, request *pc.UploadFrameRequest)
 	if err != nil {
 		return nil, err
 	}
-	return &pc.UploadFrameResponse{}, nil
+	return &pc.EdgeSendFrameResponse{}, nil
 }
 
-func (c *Cloud) DeliverModel(ctx context.Context, request *pc.DeliverModelRequest) (*pc.DeliverModelResponse, error) {
+func (c *Cloud) UpdateModel(ctx context.Context, request *pc.TrainerUpdateModelRequest) (*pc.TrainerUpdateModelResponse, error) {
 	edge, ok := c.edges[int(request.Edge)]
 	if !ok {
 		return nil, ErrEdgeNotFound
 	}
-	_, err := edge.client.LoadModel(context.Background(), &pe.LoadModelRequest{
+	_, err := edge.client.UpdateModel(context.Background(), &pe.CloudUpdateModelRequest{
 		Source: request.Source,
 		Epoch:  request.Epoch,
 		Model:  request.Model,
@@ -118,10 +118,10 @@ func (c *Cloud) DeliverModel(ctx context.Context, request *pc.DeliverModelReques
 	if err != nil {
 		return nil, err
 	}
-	return &pc.DeliverModelResponse{}, nil
+	return &pc.TrainerUpdateModelResponse{}, nil
 }
 
-func (c *Cloud) ReportAccuracy(ctx context.Context, request *pc.ReportAccuracyRequest) (*pc.ReportAccuracyResponse, error) {
+func (c *Cloud) ReportProfile(ctx context.Context, request *pc.ReportProfileRequest) (*pc.ReportProfileResponse, error) {
 	logrus.Infof("Receive accuracy report for edge %d source %d [%d, %d] accuracy %.2f", request.Edge, request.Source, request.Begin, request.End, request.Accuracy)
-	return &pc.ReportAccuracyResponse{}, nil
+	return &pc.ReportProfileResponse{}, nil
 }

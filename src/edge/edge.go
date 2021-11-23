@@ -120,7 +120,7 @@ func (e *Edge) monitorLoop() {
 func (e *Edge) uploadLoop() {
 	for {
 		pair := <-e.uploadBuffer
-		response, err := e.cloudClient.UploadFrame(context.Background(), &pc.UploadFrameRequest{
+		response, err := e.cloudClient.SendFrame(context.Background(), &pc.EdgeSendFrameRequest{
 			Edge:       int64(e.id),
 			Source:     int64(pair.frame.source),
 			Index:      int64(pair.frame.index),
@@ -160,7 +160,7 @@ func (e *Edge) inferenceLoop() {
 						logrus.WithError(ErrSourceNotFound).Errorf("Inference source %d not found", frame.source)
 						return
 					}
-					response, err := e.workerClient.Infer(context.Background(), &pw.InferRequest{
+					response, err := e.workerClient.InferFrame(context.Background(), &pw.InferFrameRequest{
 						Source:  int64(source.id),
 						Content: frame.content,
 					})
@@ -247,7 +247,7 @@ func (e *Edge) RemoveSource(ctx context.Context, request *pe.RemoveSourceRequest
 	return &pe.RemoveSourceResponse{}, nil
 }
 
-func (e *Edge) SendFrame(ctx context.Context, request *pe.SendFrameRequest) (*pe.SendFrameResponse, error) {
+func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest) (*pe.SourceSendFrameResponse, error) {
 	id := int(request.Source)
 	e.m.RLock()
 	defer e.m.RUnlock()
@@ -264,10 +264,10 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SendFrameRequest) (*pe
 	}()
 	logrus.Debugf("Received frame %d from stream %d", request.Index, id)
 	source.received++
-	return &pe.SendFrameResponse{}, nil
+	return &pe.SourceSendFrameResponse{}, nil
 }
 
-func (e *Edge) LoadModel(ctx context.Context, request *pe.LoadModelRequest) (*pe.LoadModelResponse, error) {
+func (e *Edge) UpdateModel(ctx context.Context, request *pe.CloudUpdateModelRequest) (*pe.CloudUpdateModelResponse, error) {
 	id := int(request.Source)
 	if _, ok := e.sources[id]; !ok {
 		return nil, ErrSourceNotFound
@@ -282,12 +282,12 @@ func (e *Edge) LoadModel(ctx context.Context, request *pe.LoadModelRequest) (*pe
 	if err != nil {
 		return nil, err
 	}
-	_, err = e.workerClient.UpdateModel(context.Background(), &pw.UpdateModelRequest{
+	_, err = e.workerClient.UpdateModel(context.Background(), &pw.EdgeUpdateModelRequest{
 		Source: request.Source,
 		Path:   path,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &pe.LoadModelResponse{}, nil
+	return &pe.CloudUpdateModelResponse{}, nil
 }

@@ -35,7 +35,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         self.epoch_dict = {}
         self.queue_dict = {}
 
-    def AddFrame(self, request, _):
+    def SendFrame(self, request, _):
         prefix = f'{request.edge}_{request.source}'
         if not prefix in self.epoch_dict:
             self.epoch_dict[prefix] = -1
@@ -67,7 +67,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
             "epoch": self.epoch_dict[prefix],
             "index": request.index
         })
-        return trainer_pb2.AddFrameResponse()
+        return trainer_pb2.CloudSendFrameResponse()
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ option go_package = "./;pe";
 
 service EdgeForSource {
   rpc AddSource (AddSourceRequest) returns (AddSourceResponse) {}
-  rpc SendFrame (SendFrameRequest) returns (SendFrameResponse) {}
+  rpc SendFrame (SourceSendFrameRequest) returns (SourceSendFrameResponse) {}
   rpc RemoveSource(RemoveSourceRequest) returns(RemoveSourceResponse){}
 }
 
@@ -16,13 +16,13 @@ message AddSourceResponse {
   int64 id = 1;
 }
 
-message SendFrameRequest {
+message SourceSendFrameRequest {
   int64 source = 1;
   int64 index = 2;
   bytes content = 3;
 }
 
-message SendFrameResponse {}
+message SourceSendFrameResponse {}
 
 message RemoveSourceRequest {
   int64 id = 1;
@@ -31,13 +31,13 @@ message RemoveSourceRequest {
 message RemoveSourceResponse {}
 
 service EdgeForCloud {
-  rpc LoadModel (LoadModelRequest) returns (LoadModelResponse) {}
+  rpc UpdateModel (CloudUpdateModelRequest) returns (CloudUpdateModelResponse) {}
 }
 
-message LoadModelRequest {
+message CloudUpdateModelRequest {
   int64 source = 1;
   int64 epoch = 2;
   bytes model = 3;
 }
 
-message LoadModelResponse {}
+message CloudUpdateModelResponse {}

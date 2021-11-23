@@ -28,23 +28,27 @@ class InferThread(threading.Thread):
             edge, source = o['edge'], o['source']
             prefix = f'{edge}_{source}'
             if prefix not in self.monitor_dict:
-                self.monitor_dict[prefix] = 0
+                self.monitor_dict[prefix] = {
+                    'epoch': 0,
+                    'interval': 0,
+                }
             path = f"dump/data/{prefix}/epoch_{o['epoch']}/{o['index']:06d}.jpg"
             result = inference_detector(self.model, path)
             with open(f"dump/label/{prefix}/epoch_{o['epoch']}/{o['index']:06d}.pkl", 'wb') as f:
                 pickle.dump(result, f)
             self.queue.task_done()
-            if o['index'] // self.interval > self.monitor_dict[prefix]:
+            if o['index'] // self.interval > self.monitor_dict[prefix]['interval']:
                 monitor_thread = MonitorThread(
                     edge=edge,
                     source=source,
-                    epoch=o['epoch'],
-                    begin=self.monitor_dict[prefix] * self.interval,
-                    end=self.monitor_dict[prefix] * self.interval + self.interval,
+                    epoch=self.monitor_dict[prefix]['epoch'],
+                    begin=self.monitor_dict[prefix]['interval'] * self.interval,
+                    end=self.monitor_dict[prefix]['interval'] * self.interval + self.interval,
                     config=self.config,
                     client=self.client
                 )
-                self.monitor_dict[prefix] += 1
+                self.monitor_dict[prefix]['interval'] += 1
+                self.monitor_dict[prefix]['epoch'] = o['epoch']
                 monitor_thread.start()
 
 
@@ -113,13 +117,15 @@ class MonitorThread(threading.Thread):
                 continue
             with open(f'dump/fake/{prefix}/epoch_{self.epoch}/{name}', 'rb') as f:
                 result.append(pickle.load(f))
+        if len(result) == 0:
+            print(f'#####{self.source}#####{self.epoch}#####{self.begin}#####')
         # generate configuration
         cfg = Config.fromfile(self.config)
         cfg.data.test.ann_file = f'dump/label/{prefix}/monitor_{self.begin}_{self.end}.json'
         cfg.data.test.img_prefix = f'dump/data/{prefix}/epoch_{self.epoch}'
         dataset = build_dataset(cfg.data.test)
         evaluation = dataset.evaluate(result, metric='bbox')
-        self.client.ReportAccuracy(cloud_pb2.ReportAccuracyRequest(
+        self.client.ReportProfile(cloud_pb2.ReportProfileRequest(
             edge=self.edge,
             source=self.source,
             begin=self.begin,
