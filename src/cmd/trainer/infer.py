@@ -117,19 +117,16 @@ class MonitorThread(threading.Thread):
                 continue
             with open(f'dump/fake/{prefix}/epoch_{self.epoch}/{name}', 'rb') as f:
                 result.append(pickle.load(f))
-        if len(result) == 0:
-            print(f'#####{self.source}#####{self.epoch}#####{self.begin}#####')
         # generate configuration
         cfg = Config.fromfile(self.config)
         cfg.data.test.ann_file = f'dump/label/{prefix}/monitor_{self.begin}_{self.end}.json'
         cfg.data.test.img_prefix = f'dump/data/{prefix}/epoch_{self.epoch}'
         dataset = build_dataset(cfg.data.test)
         evaluation = dataset.evaluate(result, metric='bbox')
-        self.client.ReportProfile(cloud_pb2.ReportProfileRequest(
+        self.client.ReportProfile(cloud_pb2.TrainerReportProfileRequest(
             edge=self.edge,
             source=self.source,
             begin=self.begin,
-            end=self.end,
             accuracy=evaluation['bbox_mAP']
         ))
 

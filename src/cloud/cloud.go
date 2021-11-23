@@ -108,7 +108,8 @@ func (c *Cloud) SendFrame(ctx context.Context, request *pc.EdgeSendFrameRequest)
 func (c *Cloud) UpdateModel(ctx context.Context, request *pc.TrainerUpdateModelRequest) (*pc.TrainerUpdateModelResponse, error) {
 	edge, ok := c.edges[int(request.Edge)]
 	if !ok {
-		return nil, ErrEdgeNotFound
+		logrus.WithError(ErrEdgeNotFound).Errorf("Update model for edge %d source %d failed", request.Edge, request.Source)
+		return &pc.TrainerUpdateModelResponse{}, nil
 	}
 	_, err := edge.client.UpdateModel(context.Background(), &pe.CloudUpdateModelRequest{
 		Source: request.Source,
@@ -116,12 +117,24 @@ func (c *Cloud) UpdateModel(ctx context.Context, request *pc.TrainerUpdateModelR
 		Model:  request.Model,
 	})
 	if err != nil {
-		return nil, err
+		logrus.WithError(err).Errorf("Update model for edge %d source %d failed", request.Edge, request.Source)
+		return &pc.TrainerUpdateModelResponse{}, nil
 	}
 	return &pc.TrainerUpdateModelResponse{}, nil
 }
 
-func (c *Cloud) ReportProfile(ctx context.Context, request *pc.ReportProfileRequest) (*pc.ReportProfileResponse, error) {
-	logrus.Infof("Receive accuracy report for edge %d source %d [%d, %d] accuracy %.2f", request.Edge, request.Source, request.Begin, request.End, request.Accuracy)
-	return &pc.ReportProfileResponse{}, nil
+func (c *Cloud) ReportProfile(ctx context.Context, request *pc.TrainerReportProfileRequest) (*pc.TrainerReportProfileResponse, error) {
+	edge, ok := c.edges[int(request.Edge)]
+	if !ok {
+		logrus.WithError(ErrEdgeNotFound).Errorf("Report profile for edge %d source %d failed", request.Edge, request.Source)
+		return &pc.TrainerReportProfileResponse{}, nil
+	}
+	if _, err := edge.client.ReportProfile(context.Background(), &pe.CloudReportProfileRequest{
+		Source:   request.Source,
+		Begin:    request.Begin,
+		Accuracy: request.Accuracy,
+	}); err != nil {
+		logrus.WithError(err).Errorf("Report profile for edge %d source %d failed", request.Edge, request.Source)
+	}
+	return &pc.TrainerReportProfileResponse{}, nil
 }

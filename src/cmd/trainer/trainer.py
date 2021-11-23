@@ -87,7 +87,7 @@ if __name__ == '__main__':
                         help='path to ID-name dictionary')
     parser.add_argument('--distill-interval', type=int, default=500,
                         help='length of the distillation interval')
-    parser.add_argument('--monitor-interval', type=int, default=100,
+    parser.add_argument('--monitor-interval', type=int, default=300,
                         help='length of the distillation interval')
     parser.add_argument('--config', type=str, required=True,
                         help='path to config file')

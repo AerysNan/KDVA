@@ -17,7 +17,7 @@ var (
 	port  = kingpin.Flag("port", "listen port of source server").Short('p').Default("8080").String()
 	dir   = kingpin.Flag("dir", "data directory of source server").Short('d').Required().String()
 	edge  = kingpin.Flag("edge", "address of edge server").Short('e').Default("0.0.0.0:8084").String()
-	fps   = kingpin.Flag("fps", "initial framerate").Short('f').Default("10").Int()
+	fps   = kingpin.Flag("fps", "initial framerate").Short('f').Default("30").Int()
 	debug = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
 

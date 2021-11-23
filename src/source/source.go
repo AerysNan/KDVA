@@ -84,19 +84,20 @@ func (s *Source) sendFrameLoop() {
 	timer := time.NewTimer(duration)
 	for {
 		s.m.RLock()
-		strideList := make([]int, s.currentFPS)
+		currentFPS := s.currentFPS
+		s.m.RUnlock()
+		strideList := make([]int, currentFPS)
 		remainder := s.originalFPS
-		for i := 0; i < s.currentFPS; i++ {
-			strideList[i] = s.originalFPS / s.currentFPS
+		for i := 0; i < currentFPS; i++ {
+			strideList[i] = s.originalFPS / currentFPS
 			remainder -= strideList[i]
 		}
 		for i, index := 0, 0; i < remainder; i++ {
 			strideList[index]++
-			index += s.currentFPS / remainder
+			index += currentFPS / remainder
 		}
-		duration = time.Second / time.Duration(s.currentFPS)
-		s.m.RUnlock()
-		for i := 0; i < s.currentFPS; i++ {
+		duration = time.Second / time.Duration(currentFPS)
+		for i := 0; i < currentFPS; i++ {
 			<-timer.C
 			timer.Reset(duration)
 			s.sendFrame(s.currentIndex)

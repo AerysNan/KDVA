@@ -32,6 +32,7 @@ message RemoveSourceResponse {}
 
 service EdgeForCloud {
   rpc UpdateModel (CloudUpdateModelRequest) returns (CloudUpdateModelResponse) {}
+  rpc ReportProfile (CloudReportProfileRequest) returns (CloudReportProfileResponse) {}
 }
 
 message CloudUpdateModelRequest {
@@ -41,3 +42,11 @@ message CloudUpdateModelRequest {
 }
 
 message CloudUpdateModelResponse {}
+
+message CloudReportProfileRequest {
+  int64 source = 1;
+  int64 begin = 2;
+  double accuracy = 4;
+}
+
+message CloudReportProfileResponse {}

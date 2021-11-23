@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -24,8 +25,12 @@ var (
 
 const (
 	MONITOR_INTERVAL   = time.Millisecond * 1000
-	INITIAL_THROUGHPUT = 20
+	INITIAL_THROUGHPUT = 60
 )
+
+type Profile struct {
+	accuracy float64
+}
 
 type Frame struct {
 	index   int
@@ -39,17 +44,18 @@ type Pair struct {
 }
 
 type Source struct {
-	id          int
-	weight      int
-	received    int
-	processed   int
-	uploadFPS   int
-	currentFPS  int
-	originalFPS int
-	disabled    bool
-	start       time.Time
-	buffer      chan *Frame
-	client      ps.SourceForEdgeClient
+	id             int
+	weight         int
+	received       int
+	processed      int
+	currentFPS     int
+	originalFPS    int
+	uploadInterval int
+	profiles       []*Profile
+	disabled       bool
+	start          time.Time
+	buffer         chan *Frame
+	client         ps.SourceForEdgeClient
 }
 
 type Edge struct {
@@ -60,6 +66,7 @@ type Edge struct {
 	index        int
 	address      string
 	throughput   float64
+	uploadDict   map[int]int
 	sources      map[int]*Source
 	uploadBuffer chan *Pair
 	workerClient pw.WorkerForEdgeClient
@@ -74,6 +81,7 @@ func NewEdge(address string, workerClient pw.WorkerForEdgeClient, cloudClient pc
 		sources:      make(map[int]*Source),
 		throughput:   INITIAL_THROUGHPUT,
 		uploadBuffer: make(chan *Pair),
+		uploadDict:   make(map[int]int),
 		workerClient: workerClient,
 		cloudClient:  cloudClient,
 	}
@@ -92,6 +100,7 @@ func NewEdge(address string, workerClient pw.WorkerForEdgeClient, cloudClient pc
 
 func (e *Edge) monitorLoop() {
 	timer := time.NewTicker(MONITOR_INTERVAL)
+	delay := -1
 	for {
 		func() {
 			throughput := 0.0
@@ -110,28 +119,54 @@ func (e *Edge) monitorLoop() {
 			}
 			if count != 0 {
 				logrus.Infof("Source: %d; Throughput: %.2f fps; Delay: %d frames", count, throughput, maxDelay)
+				totalFPS := 0
+				e.m.Lock()
+				for _, source := range e.sources {
+					totalFPS += source.currentFPS
+				}
 				e.throughput = throughput
+				e.m.Unlock()
+				if math.Abs(float64(totalFPS)-throughput) > 1 || maxDelay > delay {
+					delay = maxDelay
+					e.adjustFramerate()
+				}
 			}
 		}()
 		<-timer.C
 	}
 }
 
+func (e *Edge) adjustFramerate() {
+	e.m.RLock()
+	defer e.m.RUnlock()
+	totalWeight, throughput := 0, e.throughput
+	for _, source := range e.sources {
+		totalWeight += source.weight
+	}
+	for id, source := range e.sources {
+		framerate := math.Round(throughput * float64(source.weight) / float64(totalWeight))
+		if _, err := source.client.SetFramerate(context.Background(), &ps.SetFramerateRequest{
+			FrameRate: int64(framerate),
+		}); err != nil {
+			logrus.WithError(err).Errorf("Change framerate for source %d failed", id)
+		} else {
+			logrus.Infof("Change framerate for source %d to %.2f fps", id, framerate)
+			source.currentFPS = int(framerate)
+		}
+	}
+}
+
 func (e *Edge) uploadLoop() {
 	for {
 		pair := <-e.uploadBuffer
-		response, err := e.cloudClient.SendFrame(context.Background(), &pc.EdgeSendFrameRequest{
+		if _, err := e.cloudClient.SendFrame(context.Background(), &pc.EdgeSendFrameRequest{
 			Edge:       int64(e.id),
 			Source:     int64(pair.frame.source),
 			Index:      int64(pair.frame.index),
 			Content:    pair.frame.content,
 			Annotation: pair.annotation,
-		})
-		if err != nil {
+		}); err != nil {
 			logrus.WithError(err).Errorf("Upload frame %d of source %d failed", pair.frame.index, pair.frame.source)
-		}
-		if response.Accuracy > 0 {
-			e.sources[pair.frame.source].weight = int(response.Accuracy)
 		}
 	}
 }
@@ -180,7 +215,8 @@ func (e *Edge) inferenceLoop() {
 						return
 					}
 					source.processed++
-					if frame.index%(source.originalFPS/source.uploadFPS) == 0 {
+					if frame.index/source.uploadInterval > e.uploadDict[frame.source] {
+						e.uploadDict[frame.source]++
 						go func() {
 							e.uploadBuffer <- &Pair{
 								frame:      frame,
@@ -205,16 +241,17 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 	e.index++
 	e.m.Unlock()
 	source := &Source{
-		id:          id,
-		disabled:    false,
-		weight:      1,
-		received:    0,
-		processed:   0,
-		uploadFPS:   1,
-		currentFPS:  int(request.Fps),
-		originalFPS: int(request.Fps),
-		client:      client,
-		buffer:      make(chan *Frame),
+		id:             id,
+		disabled:       false,
+		weight:         1,
+		received:       0,
+		processed:      0,
+		uploadInterval: 10,
+		profiles:       make([]*Profile, 0),
+		currentFPS:     int(request.Fps),
+		originalFPS:    int(request.Fps),
+		client:         client,
+		buffer:         make(chan *Frame),
 	}
 	if _, err = e.workerClient.AddModel(context.Background(), &pw.AddModelRequest{
 		Source: int64(source.id),
@@ -225,6 +262,7 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 	e.m.Lock()
 	defer e.m.Unlock()
 	source.start = time.Now()
+	e.uploadDict[source.id] = -1
 	e.sources[source.id] = source
 	logrus.Infof("Connected with source %d", source.id)
 	os.MkdirAll(fmt.Sprintf("dump/result/%d_%d", e.id, source.id), 0777)
@@ -290,4 +328,29 @@ func (e *Edge) UpdateModel(ctx context.Context, request *pe.CloudUpdateModelRequ
 		return nil, err
 	}
 	return &pe.CloudUpdateModelResponse{}, nil
+}
+
+func (e *Edge) ReportProfile(ctx context.Context, request *pe.CloudReportProfileRequest) (*pe.CloudReportProfileResponse, error) {
+	source, ok := e.sources[int(request.Source)]
+	if !ok {
+		logrus.WithError(ErrSourceNotFound).Errorf("Report profile for source %d failed", request.Source)
+		return &pe.CloudReportProfileResponse{}, nil
+	}
+	logrus.Infof("Receive profile for source %d accuracy %.2f", request.Source, request.Accuracy)
+	accuracy := request.Accuracy
+	if accuracy < 0 {
+		if len(source.profiles) == 0 {
+			accuracy = 0.3
+		} else {
+			sum := 0.0
+			for _, profile := range source.profiles {
+				sum += profile.accuracy
+			}
+			accuracy = sum / float64(len(source.profiles))
+		}
+	}
+	source.profiles = append(source.profiles, &Profile{
+		accuracy: accuracy,
+	})
+	return &pe.CloudReportProfileResponse{}, nil
 }
