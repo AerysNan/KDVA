@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -15,36 +16,42 @@ import (
 )
 
 const (
-	MONITOR_INTERVAL = time.Millisecond * 1000
+	MONITOR_INTERVAL  = time.Millisecond * 1000
+	INITIAL_FRAMERATE = 2
 )
 
 type Source struct {
 	ps.SourceForEdgeServer
 	id           int
+	edge         int
 	currentIndex int
 	originalFPS  int
 	currentFPS   int
 	count        int
 	sent         int
-	start        time.Time
+	eval         bool
+	active       bool
+	lastMonitor  time.Time
 	dataset      string
 	address      string
 	client       pe.EdgeForSourceClient
 	m            sync.RWMutex
 }
 
-func NewSource(dataset string, address string, fps int, client pe.EdgeForSourceClient) (*Source, error) {
+func NewSource(dataset string, address string, fps int, eval bool, client pe.EdgeForSourceClient) (*Source, error) {
 	source := &Source{
 		m:            sync.RWMutex{},
 		currentIndex: 0,
 		sent:         0,
+		eval:         eval,
+		active:       true,
 		originalFPS:  fps,
-		currentFPS:   fps,
+		currentFPS:   INITIAL_FRAMERATE,
 		dataset:      dataset,
 		address:      address,
 		client:       client,
 	}
-	files, err := ioutil.ReadDir(dataset)
+	files, err := ioutil.ReadDir(fmt.Sprintf("data/%s", dataset))
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +63,15 @@ func NewSource(dataset string, address string, fps int, client pe.EdgeForSourceC
 	}
 	response, err := client.AddSource(context.Background(), &pe.AddSourceRequest{
 		Address: address,
-		Fps:     int64(fps),
+		Fps:     int64(INITIAL_FRAMERATE),
 		Dataset: source.dataset,
 	})
 	if err != nil {
 		return nil, err
 	}
 	source.id = int(response.Id)
-	source.start = time.Now()
+	source.edge = int(response.Edge)
+	source.lastMonitor = time.Now()
 	go source.sendFrameLoop()
 	go source.monitorLoop()
 	return source, nil
@@ -72,8 +80,15 @@ func NewSource(dataset string, address string, fps int, client pe.EdgeForSourceC
 func (s *Source) monitorLoop() {
 	timer := time.NewTicker(MONITOR_INTERVAL)
 	for {
-		fps := float64(s.sent) / time.Since(s.start).Seconds()
+		if !s.active {
+			return
+		}
+		fps := float64(s.sent) / time.Since(s.lastMonitor).Seconds()
 		logrus.Infof("Current frame: %d; Config FPS: %d fps; Actual FPS %.3f fps", s.currentIndex, s.currentFPS, fps)
+		s.lastMonitor = time.Now()
+		s.m.Lock()
+		s.sent = 0
+		s.m.Unlock()
 		<-timer.C
 	}
 }
@@ -110,6 +125,15 @@ func (s *Source) sendFrameLoop() {
 				}); err != nil {
 					logrus.WithError(err).Error("Failed to disconnect from edge")
 				}
+				s.active = false
+				if s.eval {
+					output, err := exec.Command("tools/evaluate_system.py", "--id", fmt.Sprintf("%v_%v", s.edge, s.id), "--dataset", s.dataset).Output()
+					if err != nil {
+						logrus.WithError(err).Error("Execute evaluation failed")
+					} else {
+						logrus.Infof("Evaluation result: %s", output)
+					}
+				}
 				os.Exit(0)
 			}
 		}
@@ -136,7 +160,9 @@ func (s *Source) sendFrame(current int) {
 	if err != nil {
 		logrus.WithError(err).Errorf("Send frame %d failed", current)
 	}
+	s.m.Lock()
 	s.sent++
+	s.m.Unlock()
 }
 
 func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateRequest) (*ps.SetFramerateResponse, error) {

@@ -15,6 +15,7 @@ message AddSourceRequest {
 
 message AddSourceResponse {
   int64 id = 1;
+  int64 edge = 2;
 }
 
 message SourceSendFrameRequest {
@@ -47,6 +48,7 @@ message CloudUpdateModelResponse {}
 message CloudReportProfileRequest {
   int64 source = 1;
   int64 begin = 2;
+  int64 end = 3;
   double accuracy = 4;
 }
 

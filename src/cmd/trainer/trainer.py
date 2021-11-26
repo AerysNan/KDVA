@@ -2,6 +2,7 @@ import argparse
 import logging
 import grpc
 import json
+import mmcv
 import ast
 import os
 
@@ -22,7 +23,7 @@ MAX_MESSAGE_LENGTH = 1 << 30
 class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
     def __init__(self, model_name, gpu_name, client, train, distill_interval, monitor_interval, config):
         models = json.load(open(f'{os.getcwd()}/data/model.json'))
-        config_file = f"{os.getcwd()}/configs/{models[model_name]['config']}"
+        config_file = mmcv.Config.fromfile(f"{os.getcwd()}/configs/{models[model_name]['config']}")
         checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
         model = init_detector(config_file, checkpoint_file, device=gpu_name)
         self.model = model
@@ -44,7 +45,6 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
             self.queue_dict[prefix] = inference_queue
         if request.index // self.distill_interval > self.epoch_dict[prefix]:
             if self.epoch_dict[prefix] >= 0:
-                print(f'Prepare distillation {prefix} on epoch {self.epoch_dict[prefix]}')
                 self.queue_dict[prefix].join()
                 distill_thread = None
                 if self.train:
@@ -70,7 +70,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.WARN)
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Object detection')
     parser.add_argument('--model', '-m', type=str, default='resnet101',
                         help='model use for inference')
@@ -84,7 +84,7 @@ if __name__ == '__main__':
                         help='whether to use online trained models')
     parser.add_argument('--distill-interval', type=int, default=500,
                         help='length of the distillation interval')
-    parser.add_argument('--monitor-interval', type=int, default=1000,
+    parser.add_argument('--monitor-interval', type=int, default=500,
                         help='length of the distillation interval')
     parser.add_argument('--config', type=str, required=True,
                         help='path to config file')

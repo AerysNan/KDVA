@@ -18,6 +18,7 @@ var (
 	dir   = kingpin.Flag("dir", "dataset name of source server").Short('d').Required().String()
 	edge  = kingpin.Flag("edge", "address of edge server").Short('e').Default("0.0.0.0:8084").String()
 	fps   = kingpin.Flag("fps", "initial framerate").Short('f').Default("30").Int()
+	eval  = kingpin.Flag("eval", "evalute result when finished").Short('v').Default("true").Bool()
 	debug = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
 
@@ -34,7 +35,7 @@ func main() {
 	defer edgeConnection.Close()
 	edgeClient := pe.NewEdgeForSourceClient(edgeConnection)
 	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
-	sourceServer, err := source.NewSource(*dir, listenAddress, *fps, edgeClient)
+	sourceServer, err := source.NewSource(*dir, listenAddress, *fps, *eval, edgeClient)
 	if err != nil {
 		logrus.WithError(err).Fatalf("Create source server failed")
 	}

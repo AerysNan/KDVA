@@ -3,6 +3,7 @@ import json
 import mmcv
 import copy
 import pickle
+import logging
 import threading
 
 import cloud_pb2
@@ -24,7 +25,7 @@ class FakeDistillThread(threading.Thread):
 
     def run(self):
         prefix = f'{self.edge}_{self.source}'
-        print(f'Finish distillation {prefix} on epoch {self.epoch}')
+        logging.info(f'Distill stream {prefix} for epoch {self.epoch + 1}')
         with open(f'models/{self.name}/{self.epoch + 1}.pth', 'rb') as f:
             self.client.UpdateModel(cloud_pb2.TrainerUpdateModelRequest(
                 edge=self.edge,
@@ -44,7 +45,6 @@ class DistillThread(threading.Thread):
 
     def run(self):
         prefix = f'{self.edge}_{self.source}'
-        print(f'Start distillation {prefix} on epoch {self.epoch}')
         config_file = 'configs/custom/ssd.py'
         cfg = mmcv.Config.fromfile(config_file)
         self.generate_annotation()
@@ -62,7 +62,7 @@ class DistillThread(threading.Thread):
             test_cfg=cfg.get('test_cfg')
         )
         train_detector(model, dataset, cfg)
-        print(f'Finish distillation {prefix} on epoch {self.epoch}')
+        self.logger.info(f'Finish distillation {prefix} on epoch {self.epoch}')
         with open(f'dump/distill/{prefix}/epoch_{self.epoch}/latest.pth', 'rb') as f:
             self.client.UpdateModel(cloud_pb2.TrainerUpdateModelRequest(
                 edge=self.edge,

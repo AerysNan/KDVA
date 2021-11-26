@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import grpc
 import json
+import mmcv
 import cv2
 import os
 
@@ -20,7 +21,7 @@ lock = rwlock.RWLock()
 class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
     def __init__(self, model_name, gpu_name):
         models = json.load(open(f'{os.getcwd()}/data/model.json'))
-        self.config_file = f"{os.getcwd()}/configs/{models[model_name]['config']}"
+        self.config_file = mmcv.Config.fromfile(f"{os.getcwd()}/configs/{models[model_name]['config']}")
         self.checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
         self.gpu_name = gpu_name
         self.model_dict = {}
@@ -37,18 +38,18 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
         return worker_pb2.RemoveModelResponse()
 
     def UpdateModel(self, request, _):
+        global lock
         logging.info(
             f'Update model for source {request.source} at path {request.path}')
         model = init_detector(self.config_file, request.path, self.gpu_name)
-        global lock
         lock.w_acquire()
         self.model_dict[request.source] = model
         lock.w_release()
         return worker_pb2.EdgeUpdateModelResponse()
 
     def InferFrame(self, request, _):
-        decoded = cv2.imdecode(np.frombuffer(request.content, np.uint8), -1)
         global lock
+        decoded = cv2.imdecode(np.frombuffer(request.content, np.uint8), -1)
         lock.r_acquire()
         class_results = inference_detector(
             self.model_dict[request.source], decoded)

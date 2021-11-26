@@ -2,6 +2,7 @@ import os
 import json
 import copy
 import pickle
+import logging
 import threading
 
 import cloud_pb2
@@ -18,7 +19,7 @@ class InferThread(threading.Thread):
         self.queue = queue
         self.model = model
         self.interval = interval
-        self.config = config
+        self.config = Config.fromfile(config)
         self.client = client
         self.monitor_dict = {}
 
@@ -64,13 +65,14 @@ class MonitorThread(threading.Thread):
         self.client = client
 
     def run(self):
+        logging.info(f'Monitor started for source {self.edge}_{self.source} in range [{self.begin}, {self.end}]')
         prefix = f'{self.edge}_{self.source}'
         # add categories
         d = copy.deepcopy(template)
         # add images
-        files = os.listdir(f'dump/data/{prefix}/epoch_{self.epoch}')
-        files.sort()
-        for i, name in enumerate(files):
+        image_files = os.listdir(f'dump/data/{prefix}/epoch_{self.epoch}')
+        image_files.sort()
+        for i, name in enumerate(image_files):
             filename, _ = os.path.splitext(name)
             if not int(filename) >= self.begin or not int(filename) < self.end:
                 continue
@@ -81,10 +83,10 @@ class MonitorThread(threading.Thread):
                 'width': 1920
             })
         # add annotations
-        files = os.listdir(f'dump/label/{prefix}/epoch_{self.epoch}')
-        files.sort()
+        annotation_files = os.listdir(f'dump/label/{prefix}/epoch_{self.epoch}')
+        annotation_files.sort()
         id = 0
-        for i, name in enumerate(files):
+        for i, name in enumerate(annotation_files):
             filename, _ = os.path.splitext(name)
             if not int(filename) >= self.begin or not int(filename) < self.end:
                 continue
@@ -109,24 +111,24 @@ class MonitorThread(threading.Thread):
             json.dump(d, f)
         # generate result
         result = []
-        files = os.listdir(f'dump/fake/{prefix}/epoch_{self.epoch}')
-        files.sort()
-        for name in files:
+        result_files = os.listdir(f'dump/fake/{prefix}/epoch_{self.epoch}')
+        result_files.sort()
+        for name in result_files:
             filename, _ = os.path.splitext(name)
             if not int(filename) >= self.begin or not int(filename) < self.end:
                 continue
             with open(f'dump/fake/{prefix}/epoch_{self.epoch}/{name}', 'rb') as f:
                 result.append(pickle.load(f))
         # generate configuration
-        cfg = Config.fromfile(self.config)
-        cfg.data.test.ann_file = f'dump/label/{prefix}/monitor_{self.begin}_{self.end}.json'
-        cfg.data.test.img_prefix = f'dump/data/{prefix}/epoch_{self.epoch}'
-        dataset = build_dataset(cfg.data.test)
+        self.config.data.test.ann_file = f'dump/label/{prefix}/monitor_{self.begin}_{self.end}.json'
+        self.config.data.test.img_prefix = f'dump/data/{prefix}/epoch_{self.epoch}'
+        dataset = build_dataset(self.config.data.test)
         evaluation = dataset.evaluate(result, metric='bbox')
         self.client.ReportProfile(cloud_pb2.TrainerReportProfileRequest(
             edge=self.edge,
             source=self.source,
             begin=self.begin,
+            end=self.end,
             accuracy=evaluation['bbox_mAP']
         ))
 

@@ -81,7 +81,7 @@ func (c *Cloud) RemoveEdge(ctx context.Context, request *pc.RemoveEdgeRequest) (
 		return nil, ErrEdgeNotFound
 	}
 	c.edges[id].disabled = true
-	logrus.Infof("Disconnected with source %d", id)
+	logrus.Infof("Disconnected with edge %d", id)
 	return &pc.RemoveEdgeResponse{}, nil
 }
 
@@ -133,6 +133,7 @@ func (c *Cloud) ReportProfile(ctx context.Context, request *pc.TrainerReportProf
 	if _, err := edge.client.ReportProfile(context.Background(), &pe.CloudReportProfileRequest{
 		Source:   request.Source,
 		Begin:    request.Begin,
+		End:      request.End,
 		Accuracy: request.Accuracy,
 	}); err != nil {
 		logrus.WithError(err).Errorf("Report profile for edge %d source %d failed", request.Edge, request.Source)
