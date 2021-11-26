@@ -10,6 +10,7 @@ service EdgeForSource {
 message AddSourceRequest {
   string address = 1;
   int64 fps = 2;
+  string dataset = 3;
 }
 
 message AddSourceResponse {

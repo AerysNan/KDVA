@@ -27,24 +27,24 @@ type Source struct {
 	count        int
 	sent         int
 	start        time.Time
-	datadir      string
+	dataset      string
 	address      string
 	client       pe.EdgeForSourceClient
 	m            sync.RWMutex
 }
 
-func NewSource(path string, address string, fps int, client pe.EdgeForSourceClient) (*Source, error) {
+func NewSource(dataset string, address string, fps int, client pe.EdgeForSourceClient) (*Source, error) {
 	source := &Source{
 		m:            sync.RWMutex{},
 		currentIndex: 0,
 		sent:         0,
 		originalFPS:  fps,
 		currentFPS:   fps,
-		datadir:      path,
+		dataset:      dataset,
 		address:      address,
 		client:       client,
 	}
-	files, err := ioutil.ReadDir(path)
+	files, err := ioutil.ReadDir(dataset)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +57,7 @@ func NewSource(path string, address string, fps int, client pe.EdgeForSourceClie
 	response, err := client.AddSource(context.Background(), &pe.AddSourceRequest{
 		Address: address,
 		Fps:     int64(fps),
+		Dataset: source.dataset,
 	})
 	if err != nil {
 		return nil, err
@@ -116,7 +117,7 @@ func (s *Source) sendFrameLoop() {
 }
 
 func (s *Source) sendFrame(current int) {
-	file, err := os.Open(fmt.Sprintf("%s/%06d.jpg", s.datadir, current))
+	file, err := os.Open(fmt.Sprintf("data/%s/%06d.jpg", s.dataset, current))
 	if err != nil {
 		logrus.WithError(err).Errorf("Open frame %d failed", current)
 		return

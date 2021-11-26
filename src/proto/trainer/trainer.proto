@@ -9,8 +9,9 @@ message CloudSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 index = 3;
-  bytes content = 4;
-  bytes annotation = 5;
+  string dataset = 4;
+  bytes content = 5;
+  bytes annotation = 6;
 }
 
 message CloudSendFrameResponse {}

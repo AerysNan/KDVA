@@ -96,6 +96,7 @@ func (c *Cloud) SendFrame(ctx context.Context, request *pc.EdgeSendFrameRequest)
 		Edge:       request.Edge,
 		Source:     request.Source,
 		Index:      request.Index,
+		Dataset:    request.Dataset,
 		Content:    request.Content,
 		Annotation: request.Annotation,
 	})

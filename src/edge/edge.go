@@ -24,8 +24,7 @@ var (
 )
 
 const (
-	MONITOR_INTERVAL   = time.Millisecond * 1000
-	INITIAL_THROUGHPUT = 60
+	MONITOR_INTERVAL = time.Millisecond * 1000
 )
 
 type Profile struct {
@@ -51,8 +50,9 @@ type Source struct {
 	currentFPS     int
 	originalFPS    int
 	uploadInterval int
-	profiles       []*Profile
 	disabled       bool
+	dataset        string
+	profiles       []*Profile
 	start          time.Time
 	buffer         chan *Frame
 	client         ps.SourceForEdgeClient
@@ -79,7 +79,7 @@ func NewEdge(address string, workerClient pw.WorkerForEdgeClient, cloudClient pc
 		index:        0,
 		address:      address,
 		sources:      make(map[int]*Source),
-		throughput:   INITIAL_THROUGHPUT,
+		throughput:   100,
 		uploadBuffer: make(chan *Pair),
 		uploadDict:   make(map[int]int),
 		workerClient: workerClient,
@@ -124,9 +124,11 @@ func (e *Edge) monitorLoop() {
 				for _, source := range e.sources {
 					totalFPS += source.currentFPS
 				}
-				e.throughput = throughput
 				e.m.Unlock()
-				if math.Abs(float64(totalFPS)-throughput) > 1 || maxDelay > delay {
+				if throughput > 0 {
+					e.throughput = throughput
+				}
+				if math.Abs(float64(totalFPS)-e.throughput) > 1 || maxDelay > delay {
 					delay = maxDelay
 					e.adjustFramerate()
 				}
@@ -159,14 +161,22 @@ func (e *Edge) adjustFramerate() {
 func (e *Edge) uploadLoop() {
 	for {
 		pair := <-e.uploadBuffer
+		source, ok := e.sources[pair.frame.source]
+		if !ok {
+			logrus.WithError(ErrSourceNotFound).Errorf("Upload frame %d of source %d failed", pair.frame.index, pair.frame.source)
+			continue
+		}
 		if _, err := e.cloudClient.SendFrame(context.Background(), &pc.EdgeSendFrameRequest{
 			Edge:       int64(e.id),
 			Source:     int64(pair.frame.source),
 			Index:      int64(pair.frame.index),
+			Dataset:    source.dataset,
 			Content:    pair.frame.content,
 			Annotation: pair.annotation,
 		}); err != nil {
 			logrus.WithError(err).Errorf("Upload frame %d of source %d failed", pair.frame.index, pair.frame.source)
+		} else {
+			logrus.Debugf("Upload frame %d of source %d", pair.frame.index, pair.frame.source)
 		}
 	}
 }
@@ -199,6 +209,7 @@ func (e *Edge) inferenceLoop() {
 						Source:  int64(source.id),
 						Content: frame.content,
 					})
+					logrus.Debugf("Infer frame %d on source %d", frame.index, frame.source)
 					if err != nil {
 						logrus.WithError(err).Errorf("Infer frame %d on source %d failed", frame.index, frame.source)
 						return
@@ -218,6 +229,7 @@ func (e *Edge) inferenceLoop() {
 					if frame.index/source.uploadInterval > e.uploadDict[frame.source] {
 						e.uploadDict[frame.source]++
 						go func() {
+							logrus.Debugf("Prepare upload frame %d from stream %d", frame.index, frame.source)
 							e.uploadBuffer <- &Pair{
 								frame:      frame,
 								annotation: bytes,
@@ -242,11 +254,12 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 	e.m.Unlock()
 	source := &Source{
 		id:             id,
-		disabled:       false,
 		weight:         1,
 		received:       0,
 		processed:      0,
-		uploadInterval: 10,
+		uploadInterval: 100,
+		disabled:       false,
+		dataset:        request.Dataset,
 		profiles:       make([]*Profile, 0),
 		currentFPS:     int(request.Fps),
 		originalFPS:    int(request.Fps),

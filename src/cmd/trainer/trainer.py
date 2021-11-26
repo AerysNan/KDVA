@@ -20,7 +20,7 @@ MAX_MESSAGE_LENGTH = 1 << 30
 
 
 class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
-    def __init__(self, model_name, gpu_name, client, train, distill_interval, monitor_interval, id2name, config):
+    def __init__(self, model_name, gpu_name, client, train, distill_interval, monitor_interval, config):
         models = json.load(open(f'{os.getcwd()}/data/model.json'))
         config_file = f"{os.getcwd()}/configs/{models[model_name]['config']}"
         checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
@@ -30,7 +30,6 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         self.train = train
         self.distill_interval = distill_interval
         self.monitor_interval = monitor_interval
-        self.id2name = id2name
         self.config = config
         self.epoch_dict = {}
         self.queue_dict = {}
@@ -51,7 +50,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
                 if self.train:
                     distill_thread = DistillThread(self.client, request.edge, request.source, self.epoch_dict[prefix])
                 else:
-                    distill_thread = FakeDistillThread(self.client, request.edge, request.source, self.epoch_dict[prefix], self.id2name[prefix])
+                    distill_thread = FakeDistillThread(self.client, request.edge, request.source, self.epoch_dict[prefix], request.dataset)
                 distill_thread.start()
             self.epoch_dict[prefix] += 1
             os.makedirs(f'dump/data/{prefix}/epoch_{self.epoch_dict[prefix]}', exist_ok=True)
@@ -83,11 +82,9 @@ if __name__ == '__main__':
                         help='name of GPU device to run inference')
     parser.add_argument('--train', '-t', type=ast.literal_eval, default='False',
                         help='whether to use online trained models')
-    parser.add_argument('--dict', '-d', type=str, default='data/dict.json',
-                        help='path to ID-name dictionary')
     parser.add_argument('--distill-interval', type=int, default=500,
                         help='length of the distillation interval')
-    parser.add_argument('--monitor-interval', type=int, default=300,
+    parser.add_argument('--monitor-interval', type=int, default=1000,
                         help='length of the distillation interval')
     parser.add_argument('--config', type=str, required=True,
                         help='path to config file')
@@ -103,8 +100,6 @@ if __name__ == '__main__':
     os.makedirs('dump/data', exist_ok=True)
     os.makedirs('dump/label', exist_ok=True)
     os.makedirs('dump/fake', exist_ok=True)
-    with open(args.dict) as f:
-        d = json.load(f)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     trainer = Trainer(
         model_name=args.model,
@@ -113,7 +108,6 @@ if __name__ == '__main__':
         train=args.train,
         distill_interval=args.distill_interval,
         monitor_interval=args.monitor_interval,
-        id2name=d,
         config=args.config
     )
     trainer_pb2_grpc.add_TrainerForCloudServicer_to_server(trainer, server)
