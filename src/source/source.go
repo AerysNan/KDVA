@@ -17,7 +17,7 @@ import (
 
 const (
 	MONITOR_INTERVAL  = time.Millisecond * 1000
-	INITIAL_FRAMERATE = 2
+	INITIAL_FRAMERATE = 3
 )
 
 type Source struct {
@@ -70,6 +70,7 @@ func NewSource(dataset string, address string, fps int, eval bool, client pe.Edg
 		return nil, err
 	}
 	source.id = int(response.Id)
+	logrus.Infof("Assigned source ID %d", source.id)
 	source.edge = int(response.Edge)
 	source.lastMonitor = time.Now()
 	go source.sendFrameLoop()
@@ -169,5 +170,6 @@ func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateReque
 	s.m.Lock()
 	s.currentFPS = int(request.FrameRate)
 	s.m.Unlock()
+	logrus.Infof("Requested to change framerate to %d", s.currentFPS)
 	return &ps.SetFramerateResponse{}, nil
 }

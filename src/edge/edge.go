@@ -26,8 +26,8 @@ var (
 
 const (
 	MONITOR_INTERVAL = time.Millisecond * 1000
-	TIMEOUT_INTERVAL = time.Millisecond * 1000
-	FIXED_THROUGHPUT = 20
+	TIMEOUT_INTERVAL = time.Millisecond * 100
+	FIXED_THROUGHPUT = 12
 )
 
 const (
@@ -82,7 +82,6 @@ type Edge struct {
 	uploadDict   map[int]int
 	sources      map[int]*Source
 	uploadBuffer chan *Pair
-	allocator    Allocator
 	workerClient pw.WorkerForEdgeClient
 	cloudClient  pc.CloudForEdgeClient
 }
@@ -96,7 +95,6 @@ func NewEdge(address string, workerClient pw.WorkerForEdgeClient, cloudClient pc
 		throughput:   100,
 		uploadBuffer: make(chan *Pair),
 		uploadDict:   make(map[int]int),
-		allocator:    &EvenAllocator{},
 		workerClient: workerClient,
 		cloudClient:  cloudClient,
 	}
@@ -117,8 +115,8 @@ func (e *Edge) monitorLoop() {
 	timer := time.NewTicker(MONITOR_INTERVAL)
 	for {
 		func() {
-			throughput, maxDelay, count, totalFPS := 0.0, 0, 0, 0
-			ids := make([]int, 0)
+			throughput, count, totalFPS := 0.0, 0, 0
+			ids, delay := make([]int, 0), make(map[int]int)
 			e.m.RLock()
 			for id, source := range e.sources {
 				if source.status != SOURCE_STATUS_CLOSED {
@@ -130,9 +128,7 @@ func (e *Edge) monitorLoop() {
 				source := e.sources[id]
 				count++
 				fps := float64(source.processed) / time.Since(source.lastMonitor).Seconds()
-				if source.receivedAcc-source.processedAcc > maxDelay {
-					maxDelay = source.receivedAcc - source.processedAcc
-				}
+				delay[id] = source.receivedAcc - source.processedAcc
 				source.m.Lock()
 				source.received = 0
 				source.processed = 0
@@ -141,9 +137,11 @@ func (e *Edge) monitorLoop() {
 				source.lastMonitor = time.Now()
 				totalFPS += source.currentFPS
 			}
-			logrus.Infof("Source: %d; Throughput: %.2f fps; FPS: %d; Delay: %d frames", count, throughput, totalFPS, maxDelay)
 			e.throughput = throughput
-			e.updateWeightAndFramerate()
+			if count > 0 {
+				logrus.Infof("S: %d; T: %.2f; F: %d; D: %v", count, throughput, totalFPS, delay)
+				e.updateWeightAndFramerate()
+			}
 		}()
 		<-timer.C
 	}
@@ -153,39 +151,46 @@ func (e *Edge) updateWeightAndFramerate() {
 	totalWeight, throughput := 0.0, FIXED_THROUGHPUT
 	ids := make([]int, 0)
 	e.m.RLock()
-	e.allocator.Allocate()
 	for id, source := range e.sources {
 		if source.status != SOURCE_STATUS_CONNECTED {
 			continue
 		}
-		totalWeight += source.weight
 		ids = append(ids, id)
 	}
 	e.m.RUnlock()
-	sort.Ints(ids)
-	framerateMap, remainder := make(map[int]int), int(throughput)
+	needUpdate := true
 	for _, id := range ids {
-		framerateMap[id] = int(float64(throughput) * e.sources[id].weight / totalWeight)
-		remainder -= framerateMap[id]
-	}
-	for _, id := range ids {
-		if remainder == 0 {
+		if !e.sources[id].updated {
+			needUpdate = false
 			break
 		}
-		framerateMap[id]++
-		remainder--
+	}
+	if !needUpdate {
+		return
 	}
 	for _, id := range ids {
-		if framerateMap[id] == e.sources[id].currentFPS {
+		e.sources[id].weight = 1 - e.sources[id].profiles[len(e.sources[id].profiles)-1].accuracy
+		e.sources[id].updated = false
+		totalWeight += e.sources[id].weight
+	}
+	sort.Ints(ids)
+	targetMap, currentMap := make(map[int]float64), make(map[int]int)
+	for _, id := range ids {
+		targetMap[id] = math.Max(1, float64(throughput)*e.sources[id].weight/totalWeight)
+		currentMap[id] = e.sources[id].currentFPS
+	}
+	util.Allocate(targetMap, currentMap)
+	logrus.Infof("Change framerate %v", currentMap)
+	for _, id := range ids {
+		if currentMap[id] == e.sources[id].currentFPS {
 			continue
 		}
 		if _, err := e.sources[id].client.SetFramerate(context.Background(), &ps.SetFramerateRequest{
-			FrameRate: int64(framerateMap[id]),
+			FrameRate: int64(currentMap[id]),
 		}); err != nil {
 			logrus.WithError(err).Errorf("Change framerate for source %d failed", id)
 		} else {
-			e.sources[id].currentFPS = framerateMap[id]
-			logrus.Infof("Change framerate for source %d to %d fps", id, e.sources[id].currentFPS)
+			e.sources[id].currentFPS = currentMap[id]
 		}
 	}
 }
@@ -289,7 +294,7 @@ func (e *Edge) inferenceLoop() {
 						}
 					}(frame)
 				case <-timeoutTimer.C:
-					logrus.Warnf("Source %d slow, skip round robin", id)
+					logrus.Debugf("Source %d slow, skip round robin", id)
 				}
 			}
 		}
@@ -333,7 +338,6 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 	e.m.Lock()
 	e.uploadDict[source.id] = -1
 	e.sources[source.id] = source
-	e.allocator.Reset(e.sources)
 	defer e.m.Unlock()
 	logrus.Infof("Connected with source %d", source.id)
 	os.MkdirAll(fmt.Sprintf("dump/result/%d_%d", e.id, source.id), 0777)
@@ -373,7 +377,7 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest
 			content: request.Content,
 		}
 	}()
-	logrus.Debugf("Receive frame %d from stream %d", request.Index, id)
+	// logrus.Debugf("Receive frame %d from stream %d", request.Index, id)
 	source.m.Lock()
 	source.received++
 	source.receivedAcc++
