@@ -7,7 +7,7 @@ import ast
 import os
 
 from distill import FakeDistillThread, DistillThread
-from infer import InferThread
+from infer import FakeInferenceThread, InferThread
 
 import trainer_pb2
 import trainer_pb2_grpc
@@ -21,13 +21,17 @@ MAX_MESSAGE_LENGTH = 1 << 30
 
 
 class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
-    def __init__(self, model_name, gpu_name, client, train, distill_interval, monitor_interval, config):
+    def __init__(self, model_name, gpu_name, client, train, emu, distill_interval, monitor_interval, config):
         models = json.load(open(f'{os.getcwd()}/data/model.json'))
         config_file = mmcv.Config.fromfile(f"{os.getcwd()}/configs/{models[model_name]['config']}")
         checkpoint_file = f"{os.getcwd()}/checkpoints/{models[model_name]['checkpoint']}"
-        model = init_detector(config_file, checkpoint_file, device=gpu_name)
-        self.model = model
+        if not emu:
+            model = init_detector(config_file, checkpoint_file, device=gpu_name)
+            self.model = model
+        else:
+            self.model = None
         self.client = client
+        self.emu = emu
         self.train = train
         self.distill_interval = distill_interval
         self.monitor_interval = monitor_interval
@@ -40,7 +44,10 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         if not prefix in self.epoch_dict:
             self.epoch_dict[prefix] = -1
             inference_queue = Queue(maxsize=10)
-            inference_thread = InferThread(inference_queue, self.model, self.monitor_interval, self.config, self.client)
+            if not self.emu:
+                inference_thread = InferThread(inference_queue, self.model, self.monitor_interval, self.config, self.client)
+            else:
+                inference_thread = FakeInferenceThread(inference_queue, self.monitor_interval, self.config, self.client, request.dataset)
             inference_thread.start()
             self.queue_dict[prefix] = inference_queue
         if request.index // self.distill_interval > self.epoch_dict[prefix]:
@@ -82,9 +89,11 @@ if __name__ == '__main__':
                         help='name of GPU device to run inference')
     parser.add_argument('--train', '-t', type=ast.literal_eval, default='False',
                         help='whether to use online trained models')
+    parser.add_argument('--emu', '-e', type=ast.literal_eval, default='True',
+                        help='whether to generate labels online')
     parser.add_argument('--distill-interval', type=int, default=500,
                         help='length of the distillation interval')
-    parser.add_argument('--monitor-interval', type=int, default=500,
+    parser.add_argument('--monitor-interval', type=int, default=250,
                         help='length of the distillation interval')
     parser.add_argument('--config', type=str, required=True,
                         help='path to config file')
@@ -105,6 +114,7 @@ if __name__ == '__main__':
         model_name=args.model,
         gpu_name=args.gpu,
         client=client,
+        emu=args.emu,
         train=args.train,
         distill_interval=args.distill_interval,
         monitor_interval=args.monitor_interval,

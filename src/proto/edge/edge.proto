@@ -50,6 +50,7 @@ message CloudReportProfileRequest {
   int64 begin = 2;
   int64 end = 3;
   double accuracy = 4;
+  double downsample = 5;
 }
 
 message CloudReportProfileResponse {}

@@ -3,10 +3,10 @@ data/
 bin/
 tmp*/
 dump/
-models/
+snapshot/
 __pycache__/
 configs/custom/*
 *.pb.go
 *pb2.py
 *pb2_grpc.py
-out*.txt
+*.txt

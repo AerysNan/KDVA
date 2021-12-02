@@ -50,13 +50,13 @@ for prefix in dataset:
         } for _ in range(n)
     ]
 
-    for image in annotation_all['images']:
+    for image in annotation_golden['images']:
         epoch = image['id'] // k
         if epoch >= n:
             continue
         annotation_test_list[epoch]['images'].append(image)
 
-    for annotation in annotation_all['annotations']:
+    for annotation in annotation_golden['annotations']:
         epoch = annotation['image_id'] // k
         if epoch >= n:
             continue

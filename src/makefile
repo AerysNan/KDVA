@@ -15,5 +15,4 @@ build:
 		go build -o ../bin/$$bin cmd/$$bin/main.go ; \
 	done
 clean:
-	find . -name '*.pb.go' -type f -delete
-	find . -name '*_pb2*.py' -type f -delete
+	rm -rf ../dump

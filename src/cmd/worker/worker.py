@@ -27,20 +27,19 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
         self.model_dict = {}
 
     def AddModel(self, request, _):
-        logging.info(f'Add new model for source {request.source}')
+        logging.info(f'Add new model for S{request.source}')
         self.model_dict[request.source] = init_detector(
             self.config_file, self.checkpoint_file, self.gpu_name)
         return worker_pb2.AddModelResponse()
 
     def RemoveModel(self, request, _):
-        logging.info(f'Remove model for source {request.source}')
+        logging.info(f'Remove model for S{request.source}')
         del self.model_dict[request.source]
         return worker_pb2.RemoveModelResponse()
 
     def UpdateModel(self, request, _):
         global lock
-        logging.info(
-            f'Update model for source {request.source} at path {request.path}')
+        logging.info(f'Update model S{request.source} at path {request.path}')
         model = init_detector(self.config_file, request.path, self.gpu_name)
         lock.w_acquire()
         self.model_dict[request.source] = model

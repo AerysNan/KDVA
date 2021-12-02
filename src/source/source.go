@@ -70,7 +70,7 @@ func NewSource(dataset string, address string, fps int, eval bool, client pe.Edg
 		return nil, err
 	}
 	source.id = int(response.Id)
-	logrus.Infof("Assigned source ID %d", source.id)
+	logrus.Infof("Assign ID S%d", source.id)
 	source.edge = int(response.Edge)
 	source.lastMonitor = time.Now()
 	go source.sendFrameLoop()
@@ -85,7 +85,7 @@ func (s *Source) monitorLoop() {
 			return
 		}
 		fps := float64(s.sent) / time.Since(s.lastMonitor).Seconds()
-		logrus.Infof("Current frame: %d; Config FPS: %d fps; Actual FPS %.3f fps", s.currentIndex, s.currentFPS, fps)
+		logrus.Infof("I: %d; F: %d; A: %.3f", s.currentIndex, s.currentFPS, fps)
 		s.lastMonitor = time.Now()
 		s.m.Lock()
 		s.sent = 0
@@ -128,11 +128,11 @@ func (s *Source) sendFrameLoop() {
 				}
 				s.active = false
 				if s.eval {
-					output, err := exec.Command("tools/evaluate_system.py", "--id", fmt.Sprintf("%v_%v", s.edge, s.id), "--dataset", s.dataset).Output()
+					output, err := exec.Command("tools/range_eval.py", "-i", fmt.Sprintf("%v_%v", s.edge, s.id), "-d", s.dataset, "-n", "36").Output()
 					if err != nil {
 						logrus.WithError(err).Error("Execute evaluation failed")
 					} else {
-						logrus.Infof("Evaluation result: %s", output)
+						logrus.Infof("Evaluation result:\n%s", output)
 					}
 				}
 				os.Exit(0)
@@ -170,6 +170,6 @@ func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateReque
 	s.m.Lock()
 	s.currentFPS = int(request.FrameRate)
 	s.m.Unlock()
-	logrus.Infof("Requested to change framerate to %d", s.currentFPS)
+	logrus.Infof("Change FPS %d", s.currentFPS)
 	return &ps.SetFramerateResponse{}, nil
 }

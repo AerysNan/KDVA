@@ -1,4 +1,4 @@
-from mmdet.apis import init_detector, inference_detector
+from mmdet.apis import init_detector
 import argparse
 import pickle
 import json
@@ -31,13 +31,12 @@ if not args.dataset in datasets:
 config_file = f"{os.getcwd()}/configs/{models[args.model]['config']}"
 checkpoint_file = f"{os.getcwd()}/checkpoints/{models[args.model]['checkpoint']}"
 model = init_detector(config_file, checkpoint_file, device=args.gpu)
-os.makedirs(f'snapshot/gt/{args.dataset}', exist_ok=True)
-start = time.time()
+os.makedirs(f'video/{args.dataset}', exist_ok=True)
+
+with open(f'data/{args.dataset}_{args.model}.pkl', 'rb') as f:
+    result = pickle.load(f)
 
 for i in range(datasets[args.dataset]):
     image = f'data/{args.dataset}/{i:06d}.jpg'
-    result = inference_detector(model, image)
-    with open(f'snapshot/{args.dataset}_{i}.pkl', 'wb') as f:
-        pickle.dump(result, f)
-    fps = (i + 1) / (time.time() - start)
-    print(f'Current throughput: {fps:.2f}')
+    model.show_result(image, result[i], out_file=f'video/{args.dataset}/{i:06d}.jpg')
+    print(i)

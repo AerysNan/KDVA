@@ -27,7 +27,7 @@ var (
 const (
 	MONITOR_INTERVAL = time.Millisecond * 1000
 	TIMEOUT_INTERVAL = time.Millisecond * 100
-	FIXED_THROUGHPUT = 12
+	FIXED_THROUGHPUT = 20
 )
 
 const (
@@ -37,7 +37,9 @@ const (
 )
 
 type Profile struct {
-	accuracy float64
+	accuracy   float64
+	downsample float64
+	gradient   float64
 }
 
 type Frame struct {
@@ -68,6 +70,7 @@ type Source struct {
 	profiles       []*Profile
 	buffer         chan *Frame
 	closeCh        chan struct{}
+	updateCh       chan struct{}
 	client         ps.SourceForEdgeClient
 }
 
@@ -169,7 +172,7 @@ func (e *Edge) updateWeightAndFramerate() {
 		return
 	}
 	for _, id := range ids {
-		e.sources[id].weight = 1 - e.sources[id].profiles[len(e.sources[id].profiles)-1].accuracy
+		e.sources[id].weight = e.sources[id].profiles[len(e.sources[id].profiles)-1].gradient
 		e.sources[id].updated = false
 		totalWeight += e.sources[id].weight
 	}
@@ -179,8 +182,8 @@ func (e *Edge) updateWeightAndFramerate() {
 		targetMap[id] = math.Max(1, float64(throughput)*e.sources[id].weight/totalWeight)
 		currentMap[id] = e.sources[id].currentFPS
 	}
-	util.Allocate(targetMap, currentMap)
-	logrus.Infof("Change framerate %v", currentMap)
+	util.Steal(targetMap, currentMap)
+	logrus.Infof("Change FPS %v", currentMap)
 	for _, id := range ids {
 		if currentMap[id] == e.sources[id].currentFPS {
 			continue
@@ -224,7 +227,7 @@ func (e *Edge) inferenceLoop() {
 		maxFPS := 0
 		e.m.RLock()
 		for id, source := range e.sources {
-			if len(source.buffer) == 0 && source.status == SOURCE_STATUS_DISCONNECTED {
+			if source.receivedAcc == source.processedAcc && source.status == SOURCE_STATUS_DISCONNECTED {
 				source.status = SOURCE_STATUS_CLOSED
 				source.closeCh <- struct{}{}
 			}
@@ -291,6 +294,10 @@ func (e *Edge) inferenceLoop() {
 								frame:      frame,
 								annotation: bytes,
 							})
+							if frame.index%500 == 0 && frame.index > 0 {
+								logrus.Debugf("Wait model update S%v", source.id)
+								<-source.updateCh
+							}
 						}
 					}(frame)
 				case <-timeoutTimer.C:
@@ -307,8 +314,14 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 		return nil, err
 	}
 	client := ps.NewSourceForEdgeClient(connection)
+	m := map[string]int{
+		"sub_1": 0,
+		"sub_3": 1,
+		"sub_6": 2,
+		"sub_8": 3,
+	}
 	e.m.Lock()
-	id := e.index
+	id := m[request.Dataset]
 	e.index++
 	e.m.Unlock()
 	source := &Source{
@@ -319,13 +332,14 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 		processed:      0,
 		receivedAcc:    0,
 		processedAcc:   0,
-		uploadInterval: 100,
+		uploadInterval: 1, // full upload
 		status:         SOURCE_STATUS_CONNECTED,
 		updated:        false,
 		dataset:        request.Dataset,
 		profiles:       make([]*Profile, 0),
 		currentFPS:     int(request.Fps),
 		client:         client,
+		updateCh:       make(chan struct{}),
 		closeCh:        make(chan struct{}),
 		buffer:         make(chan *Frame),
 	}
@@ -339,7 +353,7 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.AddSourceRequest) (*pe
 	e.uploadDict[source.id] = -1
 	e.sources[source.id] = source
 	defer e.m.Unlock()
-	logrus.Infof("Connected with source %d", source.id)
+	logrus.Infof("Connect S%d", source.id)
 	os.MkdirAll(fmt.Sprintf("dump/result/%d_%d", e.id, source.id), 0777)
 	os.MkdirAll(fmt.Sprintf("dump/model/%d_%d", e.id, source.id), 0777)
 	source.lastMonitor = time.Now()
@@ -356,9 +370,9 @@ func (e *Edge) RemoveSource(ctx context.Context, request *pe.RemoveSourceRequest
 		return nil, ErrSourceNotFound
 	}
 	source.status = SOURCE_STATUS_DISCONNECTED
-	logrus.Infof("Disconnected with source %d", id)
+	logrus.Infof("Disconnect S%d", id)
 	<-source.closeCh
-	logrus.Infof("Source %d closed", id)
+	logrus.Infof("Close S%d", id)
 	return &pe.RemoveSourceResponse{}, nil
 }
 
@@ -370,14 +384,14 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest
 	if !ok {
 		return nil, ErrSourceNotFound
 	}
-	go func() {
-		source.buffer <- &Frame{
-			index:   int(request.Index),
-			source:  id,
-			content: request.Content,
-		}
-	}()
-	// logrus.Debugf("Receive frame %d from stream %d", request.Index, id)
+	go func(source *Source, frame *Frame) {
+		source.buffer <- frame
+	}(source, &Frame{
+		index:   int(request.Index),
+		source:  id,
+		content: request.Content,
+	})
+	logrus.Debugf("Receive frame %d from stream %d", request.Index, id)
 	source.m.Lock()
 	source.received++
 	source.receivedAcc++
@@ -387,7 +401,8 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest
 
 func (e *Edge) UpdateModel(ctx context.Context, request *pe.CloudUpdateModelRequest) (*pe.CloudUpdateModelResponse, error) {
 	id := int(request.Source)
-	if _, ok := e.sources[id]; !ok {
+	source, ok := e.sources[id]
+	if !ok {
 		return nil, ErrSourceNotFound
 	}
 	path := fmt.Sprintf("dump/model/%d_%d/%d.pth", e.id, request.Source, request.Epoch)
@@ -407,6 +422,8 @@ func (e *Edge) UpdateModel(ctx context.Context, request *pe.CloudUpdateModelRequ
 	if err != nil {
 		return nil, err
 	}
+	logrus.Infof("Model update S%v", source.id)
+	source.updateCh <- struct{}{}
 	return &pe.CloudUpdateModelResponse{}, nil
 }
 
@@ -418,11 +435,14 @@ func (e *Edge) ReportProfile(ctx context.Context, request *pe.CloudReportProfile
 		logrus.WithError(ErrSourceNotFound).Errorf("Report profile for source %d failed", request.Source)
 		return &pe.CloudReportProfileResponse{}, nil
 	}
-	logrus.Infof("Receive profile for source %d in range [%d, %d] with accuracy %.2f", request.Source, request.Begin, request.End, request.Accuracy)
+	profile := &Profile{
+		accuracy:   math.Max(request.Accuracy, 0),
+		downsample: math.Max(request.Downsample, 0),
+		gradient:   (math.Max(request.Accuracy, 0) - math.Max(request.Downsample, 0)) / float64(source.currentFPS) * 100,
+	}
+	logrus.Infof("Profile S%d [%d, %d] A: %.3f; D: %.3f; G: %.3f", request.Source, request.Begin, request.End, request.Accuracy, request.Downsample, profile.gradient)
 	source.m.Lock()
-	source.profiles = append(source.profiles, &Profile{
-		accuracy: math.Max(request.Accuracy, 0),
-	})
+	source.profiles = append(source.profiles, profile)
 	source.updated = true
 	source.m.Unlock()
 	return &pe.CloudReportProfileResponse{}, nil

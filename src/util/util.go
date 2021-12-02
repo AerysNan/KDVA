@@ -89,3 +89,34 @@ func Allocate(target map[int]float64, current map[int]int) {
 		sort.Sort(l)
 	}
 }
+
+func Steal(target map[int]float64, current map[int]int) {
+	l := make(units, 0)
+	if len(current) == 1 {
+		return
+	}
+	for id := range target {
+		l = append(l, unit{
+			id:      id,
+			current: current[id],
+			target:  target[id],
+		})
+	}
+	sort.Sort(l)
+	victim := len(l) - 1
+	for victim > 0 && l[victim].current == 1 {
+		victim--
+	}
+	if victim <= 0 {
+		return
+	}
+	p1 := math.Abs(float64(l[0].current)-l[0].target) + math.Abs(float64(l[victim].current)-l[victim].target)
+	p2 := math.Abs(float64(l[0].current+1)-l[0].target) + math.Abs(float64(l[victim].current-1)-l[victim].target)
+	if p1 <= p2 {
+		return
+	}
+	l[0].current++
+	l[victim].current--
+	current[l[0].id]++
+	current[l[victim].id]--
+}

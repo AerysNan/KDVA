@@ -25,8 +25,8 @@ class FakeDistillThread(threading.Thread):
 
     def run(self):
         prefix = f'{self.edge}_{self.source}'
-        logging.info(f'Distill stream {prefix} for epoch {self.epoch + 1}')
-        with open(f'models/{self.name}/{self.epoch + 1}.pth', 'rb') as f:
+        logging.info(f'Distill S{prefix} E{self.epoch + 1}')
+        with open(f'snapshot/models/{self.name}/{self.epoch + 1}.pth', 'rb') as f:
             self.client.UpdateModel(cloud_pb2.TrainerUpdateModelRequest(
                 edge=self.edge,
                 source=self.source,

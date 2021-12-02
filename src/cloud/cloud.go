@@ -131,10 +131,11 @@ func (c *Cloud) ReportProfile(ctx context.Context, request *pc.TrainerReportProf
 		return &pc.TrainerReportProfileResponse{}, nil
 	}
 	if _, err := edge.client.ReportProfile(context.Background(), &pe.CloudReportProfileRequest{
-		Source:   request.Source,
-		Begin:    request.Begin,
-		End:      request.End,
-		Accuracy: request.Accuracy,
+		Source:     request.Source,
+		Begin:      request.Begin,
+		End:        request.End,
+		Accuracy:   request.Accuracy,
+		Downsample: request.Downsample,
 	}); err != nil {
 		logrus.WithError(err).Errorf("Report profile for edge %d source %d failed", request.Edge, request.Source)
 	}

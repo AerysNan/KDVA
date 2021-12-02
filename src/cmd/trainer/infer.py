@@ -3,6 +3,7 @@ import json
 import copy
 import pickle
 import logging
+from shutil import copyfile
 import threading
 
 import cloud_pb2
@@ -53,6 +54,43 @@ class InferThread(threading.Thread):
                 monitor_thread.start()
 
 
+class FakeInferenceThread(threading.Thread):
+    def __init__(self, queue, interval, config, client, name):
+        super(FakeInferenceThread, self).__init__()
+        self.queue = queue
+        self.interval = interval
+        self.client = client
+        self.config = Config.fromfile(config)
+        self.monitor_dict = {}
+        self.name = name
+
+    def run(self):
+        while True:
+            o = self.queue.get()
+            edge, source = o['edge'], o['source']
+            prefix = f'{edge}_{source}'
+            if prefix not in self.monitor_dict:
+                self.monitor_dict[prefix] = {
+                    'epoch': 0,
+                    'interval': 0,
+                }
+            copyfile(f"snapshot/gt/{self.name}/{o['index']}.pkl", f"dump/label/{prefix}/epoch_{o['epoch']}/{o['index']:06d}.pkl")
+            self.queue.task_done()
+            if o['index'] // self.interval > self.monitor_dict[prefix]['interval']:
+                monitor_thread = MonitorThread(
+                    edge=edge,
+                    source=source,
+                    epoch=self.monitor_dict[prefix]['epoch'],
+                    begin=self.monitor_dict[prefix]['interval'] * self.interval,
+                    end=self.monitor_dict[prefix]['interval'] * self.interval + self.interval,
+                    config=self.config,
+                    client=self.client
+                )
+                self.monitor_dict[prefix]['interval'] += 1
+                self.monitor_dict[prefix]['epoch'] = o['epoch']
+                monitor_thread.start()
+
+
 class MonitorThread(threading.Thread):
     def __init__(self, edge, source, epoch, begin, end, config, client):
         super(MonitorThread, self).__init__()
@@ -65,7 +103,7 @@ class MonitorThread(threading.Thread):
         self.client = client
 
     def run(self):
-        logging.info(f'Monitor started for source {self.edge}_{self.source} in range [{self.begin}, {self.end}]')
+        logging.info(f'Monitor S{self.edge}_{self.source} [{self.begin}, {self.end}]')
         prefix = f'{self.edge}_{self.source}'
         # add categories
         d = copy.deepcopy(template)
@@ -124,12 +162,19 @@ class MonitorThread(threading.Thread):
         self.config.data.test.img_prefix = f'dump/data/{prefix}/epoch_{self.epoch}'
         dataset = build_dataset(self.config.data.test)
         evaluation = dataset.evaluate(result, metric='bbox')
+
+        downsampled_result = copy.deepcopy(result)
+        for i in range(1, len(downsampled_result), 2):
+            downsampled_result[i] = copy.deepcopy(downsampled_result[i-1])
+        downsampled_evaluation = dataset.evaluate(downsampled_result, metric='bbox')
+
         self.client.ReportProfile(cloud_pb2.TrainerReportProfileRequest(
             edge=self.edge,
             source=self.source,
             begin=self.begin,
             end=self.end,
-            accuracy=evaluation['bbox_mAP']
+            accuracy=evaluation['bbox_mAP'],
+            downsample=downsampled_evaluation['bbox_mAP']
         ))
 
     def xyxy2xywh(self, bbox):

@@ -52,6 +52,7 @@ message TrainerReportProfileRequest {
   int64 begin = 3;
   int64 end = 4;
   double accuracy = 5;
+  double downsample = 6;
 }
 
 message TrainerReportProfileResponse {}

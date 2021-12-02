@@ -23,7 +23,7 @@ for prefix in dataset:
     for i in range(n):
         f = open(f'configs/custom/ssd_{prefix}_{i}_{args.config}.py', 'w')
         f.write(f"""
-_base_ = '../ssd/ssdlite_mobilenetv2_scratch_600e_coco.py'
+_base_ = '../ssdlite_mobilenetv2_scratch_600e_coco.py'
 # Modify dataset related settings
 dataset_type = 'CocoDataset'
 data_root = 'data/'
