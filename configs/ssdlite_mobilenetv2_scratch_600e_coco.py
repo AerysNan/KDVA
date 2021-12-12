@@ -88,10 +88,10 @@ train_pipeline = [
         type='MinIoURandomCrop',
         min_ious=(0.1, 0.3, 0.5, 0.7, 0.9),
         min_crop_size=0.3),
-    dict(type='Resize', img_scale=(320, 320), keep_ratio=False),
-    dict(type='Normalize', **img_norm_cfg),
+    dict(type='Resize', img_scale=(960, 540), keep_ratio=False),
     dict(type='RandomFlip', flip_ratio=0.5),
-    dict(type='Pad', size_divisor=320),
+    dict(type='Normalize', **img_norm_cfg),
+    dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
 ]
@@ -99,29 +99,23 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(320, 320),
+        img_scale=(960, 540),
         flip=False,
         transforms=[
             dict(type='Resize', keep_ratio=False),
+            dict(type='RandomFlip'),
             dict(type='Normalize', **img_norm_cfg),
-            dict(type='Pad', size_divisor=320),
+            dict(type='Pad', size_divisor=32),
             dict(type='DefaultFormatBundle'),
             dict(type='Collect', keys=['img']),
         ])
 ]
 data = dict(
-    samples_per_gpu=24,
+    samples_per_gpu=16,
     workers_per_gpu=4,
     train=dict(
         _delete_=True,
         pipeline=train_pipeline
-        # type='RepeatDataset',  # use RepeatDataset to speed up training
-        # times=5,
-        # dataset=dict(
-        #     type=dataset_type,
-        #     ann_file=data_root + 'annotations/instances_train2017.json',
-        #     img_prefix=data_root + 'train2017/',
-        #     pipeline=train_pipeline)
     ),
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))

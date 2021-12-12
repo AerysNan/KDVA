@@ -9,22 +9,19 @@ from mmcv import Config
 from mmdet.datasets import build_dataset
 
 
-def evalutate_system(id, ds, config, fake, l=0, r=None):
+def evalutate_system(path, ds, config, l=0, r=None):
     cfg = Config.fromfile(config)
-    if not fake:
-        cfg.data.test.ann_file = f'data/annotations/{ds}.json'
-    else:
-        cfg.data.test.ann_file = f'data/annotations/{ds}_fake.json'
-    cfg.data.test.img_prefix = f'data/{ds}'
+    cfg.data.test.ann_file = f'data/annotations/{ds}.gt.json'
+    cfg.data.test.img_prefix = ''
     dataset = build_dataset(cfg.data.test)
 
     result = []
     previous = None
 
-    if not os.path.exists(f'dump/result/{id}/{l}.pkl'):
+    if not os.path.exists(f'{path}/{l:06d}.pkl'):
         for i in range(l, -1, -1):
-            if os.path.exists(f'dump/result/{id}/{i}.pkl'):
-                with open(f'dump/result/{id}/{i}.pkl', 'rb') as f:
+            if os.path.exists(f'{path}/{i:06d}.pkl'):
+                with open(f'{path}/{i:06d}.pkl', 'rb') as f:
                     previous = pickle.load(f)
                 break
 
@@ -32,8 +29,8 @@ def evalutate_system(id, ds, config, fake, l=0, r=None):
         r = len(dataset)
 
     for i in range(l, r):
-        if os.path.exists(f'dump/result/{id}/{i}.pkl'):
-            with open(f'dump/result/{id}/{i}.pkl', 'rb') as f:
+        if os.path.exists(f'{path}/{i:06d}.pkl'):
+            with open(f'{path}/{i:06d}.pkl', 'rb') as f:
                 o = pickle.load(f)
                 result.append(o)
                 previous = o
@@ -46,8 +43,8 @@ def evalutate_system(id, ds, config, fake, l=0, r=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate system performance')
-    parser.add_argument('--id', '-i', help='ID of video source to be evaluated', type=str, required=True)
+    parser.add_argument('--path', '-p', help='path to result files', type=str, required=True)
     parser.add_argument('--dataset', '-d', help='name of dataset', type=str, required=True)
     parser.add_argument('--config', '-c', help='config file path', type=str, default="/home/ubuntu/urban/configs/custom/ssd.py")
     args = parser.parse_args()
-    print(f'mAP = {evalutate_system(args.id, args.dataset, args.config, True)}')
+    print(f'mAP = {evalutate_system(args.path, args.dataset, args.config)}')

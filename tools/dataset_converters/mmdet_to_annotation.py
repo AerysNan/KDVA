@@ -11,7 +11,7 @@ parser.add_argument('--threshold', '-t', type=float, default=0.8,
                     help='confidence threshold for result filter')
 args = parser.parse_args()
 
-with open(f'data/annotations/{args.base}_base.json') as f:
+with open(f'data/annotations/{args.base}.base.json') as f:
     data = json.load(f)
 
 results = json.load(open(args.result))
@@ -27,5 +27,5 @@ for result in results:
     data['annotations'].append(result)
     id += 1
 
-with open(f'data/annotations/{args.base}_fake.json', 'w') as f:
+with open(f'data/annotations/{args.base}.gt.json', 'w') as f:
     json.dump(data, f)

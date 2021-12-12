@@ -176,8 +176,11 @@ def main():
 
     # overwrite test configuration
     if args.dataset is not None:
-        cfg.data.test.ann_file = f'data/annotations/{args.dataset}.json'
-        cfg.data.test.img_prefix = f'data/{args.dataset}'
+        if args.format_only:
+            cfg.data.test.ann_file = f'data/annotations/{args.dataset}.base.json'
+        else:
+            cfg.data.test.ann_file = f'data/annotations/{args.dataset}.gt.json'
+        cfg.data.test.img_prefix = ''
     # build the dataloader
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(

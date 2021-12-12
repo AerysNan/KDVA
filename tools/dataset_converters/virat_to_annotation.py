@@ -2,20 +2,23 @@ import argparse
 import json
 
 parser = argparse.ArgumentParser(
-    description='Convert the result from a model to grouth truth annotations')
-parser.add_argument('--base', '-b', type=str, required=True,
-                    help='base annotation file')
-parser.add_argument('--result', '-r', type=str, required=True,
-                    help='inference result from a model')
+    description='Convert VIRAT annotation to standard annotation')
+parser.add_argument('--base', '-b', type=str, required=True, help='base annotation file')
+parser.add_argument('--annotation', '-a', type=str, required=True, help='VIRAT annotation file path')
+parser.add_argument('--begin', '-l', type=int, required=True, help='begin index')
+parser.add_argument('--end', '-r', type=int, required=True, help='end index')
 args = parser.parse_args()
 
-with open(f'data/annotations/{args.base}_fake.json') as f:
+with open(f'data/annotations/{args.base}.base.json') as f:
     data = json.load(f)
-results = open(args.result)
+results = open(args.annotation)
 
 id = 0
 for result in results:
     values = result.split(' ')
+    image_id = int(values[2])
+    if image_id < args.begin or image_id >= args.end:
+        continue
     if len(values) != 8:
         continue
     category = int(values[7])
@@ -23,7 +26,7 @@ for result in results:
         continue
     annotation = {
         "id": id,
-        "image_id": int(values[2]),
+        "image_id": image_id - args.begin,
         "bbox": [int(values[3]), int(values[4]), int(values[5]), int(values[6])],
         "iscrowd": 0,
     }
@@ -42,5 +45,5 @@ for result in results:
     id += 1
 
 
-with open(f'data/annotations/{args.base}.json', 'w') as f:
+with open(f'data/annotations/{args.base}.gt.json', 'w') as f:
     json.dump(data, f)

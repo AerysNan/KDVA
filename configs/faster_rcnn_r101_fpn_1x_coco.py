@@ -4,11 +4,3 @@ model = dict(
         depth=101,
         init_cfg=dict(type='Pretrained',
                       checkpoint='torchvision://resnet101')))
-
-dataset_type = 'CocoDataset'
-data_root = 'data/'
-
-data = dict(test=dict(
-    type=dataset_type,
-    ann_file=data_root + 'annotations/sherbrooke.json',
-    img_prefix=data_root + 'sherbrooke/'))

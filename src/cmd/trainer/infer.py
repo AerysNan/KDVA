@@ -74,7 +74,7 @@ class FakeInferenceThread(threading.Thread):
                     'epoch': 0,
                     'interval': 0,
                 }
-            copyfile(f"snapshot/gt/{self.name}/{o['index']}.pkl", f"dump/label/{prefix}/epoch_{o['epoch']}/{o['index']:06d}.pkl")
+            copyfile(f"snapshot/gt/{self.name}/{o['index']:06d}.pkl", f"dump/label/{prefix}/epoch_{o['epoch']}/{o['index']:06d}.pkl")
             self.queue.task_done()
             if o['index'] // self.interval > self.monitor_dict[prefix]['interval']:
                 monitor_thread = MonitorThread(
