@@ -9,8 +9,5 @@ configs/custom/*
 *.pb.go
 *pb2.py
 *pb2_grpc.py
-*.csv
 
 datasets.json
-demo_test.py
-test.sh
