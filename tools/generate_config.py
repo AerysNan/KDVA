@@ -33,12 +33,6 @@ _base_ = '../ssdlite_mobilenetv2_scratch_600e_coco.py'
 dataset_type = 'CocoDataset'
 data_root = 'data/'
 
-model = dict(
-    backbone=dict(
-        frozen_stages=8,
-    )
-)
-
 data = dict(
     train=dict(
         type=dataset_type,

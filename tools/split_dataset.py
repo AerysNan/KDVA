@@ -1,6 +1,9 @@
+import ast
 import json
+import pickle
 import argparse
 
+import numpy as np
 
 parser = argparse.ArgumentParser(
     description='Generate config file')
@@ -9,7 +12,9 @@ parser.add_argument(
 parser.add_argument(
     '--size', '-s', help='size of splitted dataset', type=int, default=600)
 parser.add_argument(
-    '--rate', '-r', help='sampling rate of training dataset', type=int, default=10)
+    '--rate', '-r', help='sampling rate of training dataset', type=int)
+parser.add_argument(
+    '--ssim', help='use frame difference selector', type=ast.literal_eval, default=False)
 parser.add_argument(
     '--postfix', '-o', help='generated postfix', type=str)
 args = parser.parse_args()
@@ -20,10 +25,17 @@ if args.postfix:
     postfix = f'_{args.postfix}'
 else:
     postfix = ''
-for prefix in dataset:
-    k = args.size
-    r = args.rate
-    n = dataset[prefix]['size'] // k
+
+if args.ssim:
+    with open('snapshot/ssim.pkl', 'rb') as f:
+        ssim = pickle.load(f)
+
+epoch_size = args.size
+sample_interval = args.rate
+
+for stream_index, prefix in enumerate(dataset):
+
+    epoch_count = dataset[prefix]['size'] // epoch_size
 
     annotation_all = json.load(open(f'data/annotations/{prefix}.gt.json'))
 
@@ -32,7 +44,7 @@ for prefix in dataset:
             'images': [],
             'annotations':[],
             'categories':annotation_all['categories']
-        } for _ in range(n)
+        } for _ in range(epoch_count)
     ]
 
     annotation_val_list = [
@@ -40,7 +52,7 @@ for prefix in dataset:
             'images': [],
             'annotations':[],
             'categories':annotation_all['categories']
-        } for _ in range(n)
+        } for _ in range(epoch_count)
     ]
 
     annotation_test_list = [
@@ -48,28 +60,46 @@ for prefix in dataset:
             'images': [],
             'annotations':[],
             'categories':annotation_all['categories']
-        } for _ in range(n)
+        } for _ in range(epoch_count)
     ]
 
+    if args.ssim:
+        ssim_epoch = ssim[stream_index].reshape(epoch_count, -1)
+        ssim_index = np.argsort(ssim_epoch, axis=1)
+
     for image in annotation_all['images']:
-        epoch = image['id'] // k
-        offset = image['id'] % k
+        epoch = image['id'] // epoch_size
+        offset = image['id'] % epoch_size
         annotation_test_list[epoch]['images'].append(image)
-        if offset % r == 0:
-            annotation_train_list[epoch]['images'].append(image)
-        elif offset % r == (r // 2):
-            annotation_val_list[epoch]['images'].append(image)
+        # use even sampling
+        if not args.ssim:
+            if offset % sample_interval == 0:
+                annotation_train_list[epoch]['images'].append(image)
+            elif offset % sample_interval == (sample_interval // 2):
+                annotation_val_list[epoch]['images'].append(image)
+        else:
+            if ssim_index[epoch, offset] < epoch_size // sample_interval:
+                annotation_train_list[epoch]['images'].append(image)
+            elif offset % sample_interval == (sample_interval // 2):
+                annotation_val_list[epoch]['images'].append(image)
 
     for annotation in annotation_all['annotations']:
-        epoch = annotation['image_id'] // k
-        offset = annotation['image_id'] % k
+        epoch = annotation['image_id'] // epoch_size
+        offset = annotation['image_id'] % epoch_size
         annotation_test_list[epoch]['annotations'].append(annotation)
-        if offset % r == 0:
-            annotation_train_list[epoch]['annotations'].append(annotation)
-        elif offset % r == (r // 2):
-            annotation_val_list[epoch]['annotations'].append(annotation)
+        # use even sampling
+        if not args.ssim:
+            if offset % sample_interval == 0:
+                annotation_train_list[epoch]['annotations'].append(annotation)
+            elif offset % sample_interval == (sample_interval // 2):
+                annotation_val_list[epoch]['annotations'].append(annotation)
+        else:
+            if ssim_index[epoch, offset] < epoch_size // sample_interval:
+                annotation_train_list[epoch]['annotations'].append(annotation)
+            elif offset % sample_interval == (sample_interval // 2):
+                annotation_val_list[epoch]['annotations'].append(annotation)
 
-    for epoch in range(n):
+    for epoch in range(epoch_count):
 
         with open(f'data/annotations/{prefix}{postfix}_train_{epoch}.gt.json', 'w') as f:
             json.dump(annotation_train_list[epoch], f)

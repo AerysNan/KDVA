@@ -17,13 +17,13 @@ results = None
 def eval(cfg, stream):
     global results
     # define evaluation function for multiprocessing
-    # print(f'Evaluting stream {stream} ...')
+    print(f'Evaluting stream {stream} ...')
     dataset = build_dataset(cfg.data.test)
     d = {
         'id': stream,
         'mAP': dataset.evaluate(results[stream], metric='bbox')['bbox_mAP'],
     }
-    # print(f'Evaluting stream {stream} finished!')
+    print(f'Evaluting stream {stream} finished!')
     return d
 
 
@@ -47,7 +47,7 @@ def allocate(bottleneck, profit_matrix):
     return choice
 
 
-def fake_replay(average_tpt, optimal, use_dp, size, n_stream):
+def fake_distill(average_tpt, optimal, use_dp, size, n_stream, val):
     with open('datasets.json') as f:
         datasets = json.load(f)
     with open(f'configs/cache/map_distill_{size}.pkl', 'rb') as f:
@@ -57,8 +57,12 @@ def fake_replay(average_tpt, optimal, use_dp, size, n_stream):
     n_config, n_stream, n_epoch = mmap_distill.shape
 
     if not optimal:
-        with open(f'configs/cache/map_observation_{size}.pkl', 'rb') as f:
-            mmap_distill = pickle.load(f)[:, :n_stream, :]
+        if val:
+            with open(f'snapshot/map_val.pkl', 'rb') as f:
+                mmap_distill = pickle.load(f)[:, :n_stream, :]
+        else:
+            with open(f'snapshot/map_test.pkl', 'rb') as f:
+                mmap_distill = pickle.load(f)[:, :n_stream, :]
     streams = []
     for i, stream in enumerate(datasets):
         if i >= n_stream:
@@ -88,7 +92,7 @@ def fake_replay(average_tpt, optimal, use_dp, size, n_stream):
         for stream in range(n_stream):
             name = streams[stream]
             for i in range(epoch * batch_size, epoch * batch_size + batch_size):
-                with open(f'snapshot/result/{name}_{choices[epoch, stream]}-{batch_size}/{i:06d}.pkl', 'rb') as f:
+                with open(f'snapshot/result/{name}_{choices[epoch, stream]}/{i:06d}.pkl', 'rb') as f:
                     result = pickle.load(f)
                 results[stream].append(result)
         # decide distillation choice for next epoch
@@ -102,23 +106,40 @@ def fake_replay(average_tpt, optimal, use_dp, size, n_stream):
                     current_choice = allocate(bottleneck, mmap_observation_epoch)
                 else:
                     current_choice = copy.deepcopy(choices[epoch, :])
-                    for _ in range(n_stream // 2):
-                        gradient = np.zeros(n_stream, dtype=np.double)
+                    for _ in range(n_stream):
+                        gradient_gain = np.zeros(n_stream, dtype=np.double)
+                        gradient_loss = np.zeros(n_stream, dtype=np.double)
                         for stream in range(n_stream):
                             name = streams[stream]
-                            if current_choice[stream] == 0:
-                                gradient[stream] = mmap_observation_epoch[current_choice[stream], stream]
-                            else:
-                                gradient[stream] = mmap_observation_epoch[current_choice[stream], stream] - mmap_observation_epoch[current_choice[stream] - 1, stream]
-                        index = np.argsort(gradient)
+                            gradient_gain[stream] = mmap_observation_epoch[current_choice[stream] + 1, stream] - \
+                                mmap_observation_epoch[current_choice[stream], stream] if current_choice[stream] != n_config - 1 else -1
+                            gradient_loss[stream] = mmap_observation_epoch[current_choice[stream], stream] - \
+                                mmap_observation_epoch[current_choice[stream] - 1, stream] if current_choice[stream] != 0 else 1
+                        index_gain = np.argsort(gradient_gain)
+                        index_loss = np.argsort(gradient_loss)
                         thief, victim = n_stream - 1, 0
-                        while thief >= 0 and current_choice[index[thief]] == n_config - 1:
+                        while thief >= 0 and current_choice[index_gain[thief]] >= n_config - 1:
                             thief -= 1
-                        while victim < n_stream and current_choice[index[victim]] == 0:
+                        while victim < n_stream and current_choice[index_loss[victim]] <= 0:
                             victim += 1
-                        if thief > victim:
-                            current_choice[index[thief]] += 1
-                            current_choice[index[victim]] -= 1
+                        if index_gain[thief] == index_loss[victim]:
+                            if thief == 0 and victim == n_stream - 1:
+                                break
+                            if thief == 0:
+                                victim += 1
+                            elif victim == n_stream - 1:
+                                thief -= 1
+                            elif gradient_gain[index_gain[thief - 1]] - gradient_loss[index_loss[victim]] > gradient_gain[index_gain[thief]] - gradient_loss[index_loss[victim + 1]]:
+                                thief -= 1
+                            else:
+                                victim += 1
+                        while thief >= 0 and current_choice[index_gain[thief]] >= n_config - 1:
+                            thief -= 1
+                        while victim < n_stream and current_choice[index_loss[victim]] <= 0:
+                            victim += 1
+                        if thief >= 0 and victim < n_stream and gradient_gain[index_gain[thief]] > gradient_loss[index_loss[victim]]:
+                            current_choice[index_gain[thief]] += 1
+                            current_choice[index_loss[victim]] -= 1
                         else:
                             break
 
@@ -151,8 +172,9 @@ if __name__ == '__main__':
     parser.add_argument('--aggresive', '-a', type=ast.literal_eval, default=True, help='use DP')
     parser.add_argument('--size', '-s', type=int, default=600, help='epoch size')
     parser.add_argument('--stream', '-n', type=int, default=12, help='number of streams')
+    parser.add_argument('--val', '-v', type=ast.literal_eval, default=True, help='use validation set')
     args = parser.parse_args()
-    baseline_map_total, aca_map_total = fake_replay(args.throughput, args.optimal, args.aggresive, args.size, args.stream)
+    baseline_map_total, aca_map_total = fake_distill(args.throughput, args.optimal, args.aggresive, args.size, args.stream, args.val)
     print('baseline')
     for v in baseline_map_total:
         print(v)
