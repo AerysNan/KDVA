@@ -68,6 +68,8 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
+    parser.add_argument('--train-dataset', help='customized dataset name', type=str, default=None)
+    parser.add_argument('--val-dataset', help='customized dataset name', type=str, default=None)
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -161,7 +163,12 @@ def main():
         train_cfg=cfg.get('train_cfg'),
         test_cfg=cfg.get('test_cfg'))
     model.init_weights()
-
+    if args.train_dataset is not None:
+        cfg.data.train.ann_file = f'data/annotations/{args.train_dataset}.golden.json'
+        cfg.data.train.img_prefix = ''
+    if args.val_dataset is not None:
+        cfg.data.val.ann_file = f'data/annotations/{args.val_dataset}.golden.json'
+        cfg.data.val.img_prefix = ''
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:
         val_dataset = copy.deepcopy(cfg.data.val)

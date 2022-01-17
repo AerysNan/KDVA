@@ -33,5 +33,5 @@ for i, frame_result in enumerate(results):
             data["annotations"].append(annotation)
             uid += 1
 
-with open(f'data/annotations/{args.dataset}.gt.json', 'w') as f:
+with open(f'data/annotations/{args.dataset}.golden.json', 'w') as f:
     json.dump(data, f)

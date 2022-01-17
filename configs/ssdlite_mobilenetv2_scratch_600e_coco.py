@@ -112,13 +112,21 @@ test_pipeline = [
 ]
 data = dict(
     samples_per_gpu=16,
+    type=dataset_type,
     workers_per_gpu=4,
     train=dict(
-        _delete_=True,
+        type=dataset_type,
         pipeline=train_pipeline
     ),
-    val=dict(pipeline=test_pipeline),
-    test=dict(pipeline=test_pipeline))
+    val=dict(
+        type=dataset_type,
+        pipeline=test_pipeline
+    ),
+    test=dict(
+        type=dataset_type,
+        pipeline=test_pipeline
+    )
+)
 
 # optimizer
 optimizer = dict(type='SGD', lr=0.015, momentum=0.9, weight_decay=4.0e-5)

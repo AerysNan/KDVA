@@ -6,7 +6,7 @@ import argparse
 from mmcv import Config
 from mmdet.datasets import build_dataset
 
-ORIGINAL_FRAMERATE = 60
+ORIGINAL_FRAMERATE = 500
 
 
 def replay_trace(path, name, framerate, batch_size):
@@ -26,9 +26,9 @@ def replay_trace(path, name, framerate, batch_size):
     mAP = []
     for i in range(n_epoch):
         begin, end, stride = i * batch_size, i * batch_size + batch_size, ORIGINAL_FRAMERATE // framerate[i]
-        cfg.data.test.ann_file = f'data/annotations/{name}_test_{i}.gt.json'
-        cfg.data.test.img_prefix = ''
-        dataset = build_dataset(cfg.data.test)
+        # cfg.data.test.ann_file = f'data/annotations/{name}_test_{i}.gt.json'
+        # cfg.data.test.img_prefix = ''
+        # dataset = build_dataset(cfg.data.test)
         result = []
         for j in range(begin, end):
             if j % stride == 0:
@@ -38,7 +38,7 @@ def replay_trace(path, name, framerate, batch_size):
                     previous = o
             else:
                 result.append(copy.deepcopy(previous))
-        mAP.append(dataset.evaluate(result, metric='bbox')['bbox_mAP'])
+        # mAP.append(dataset.evaluate(result, metric='bbox')['bbox_mAP'])
         results.extend(result)
     cfg.data.test.ann_file = f'data/annotations/{key}.gt.json'
     cfg.data.test.img_prefix = ''
