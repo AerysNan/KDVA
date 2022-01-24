@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate system performance')
     parser.add_argument('--path', '-p', help='path to result files', type=str, required=True)
     parser.add_argument('--dataset', '-d', help='name of dataset', type=str, required=True)
-    parser.add_argument('--config', '-c', help='config file path', type=str, default='/home/ubuntu/urban/configs/custom/ssd.py')
+    parser.add_argument('--config', '-c', help='config file path', type=str, default='configs/custom/ssd.py')
     parser.add_argument('--count', '-n', help='number of splitted ranges', type=int, default=15)
     parser.add_argument('--summary', '-s', help='whether to evaluate the whole sequence', type=ast.literal_eval, default=False)
     args = parser.parse_args()

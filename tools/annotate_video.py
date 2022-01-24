@@ -1,11 +1,11 @@
-import ast
-import shutil
-from mmdet.apis import init_detector
-import argparse
-import pickle
-import json
-import cv2
 import os
+import cv2
+import ast
+import json
+import shutil
+import pickle
+import argparse
+from evaluate_from_file import filter_result
 
 parser = argparse.ArgumentParser(description='Object detection')
 parser.add_argument('--dataset', '-d', type=str, required=True,
@@ -24,29 +24,39 @@ parser.add_argument('--end', '-e', type=int, default=float('inf'),
                     help='end index')
 parser.add_argument('--config', '-c', type=str, default='configs/custom/ssd.py',
                     help='configuration path of the model')
-parser.add_argument('--model', '-m', type=str, default='checkpoints/ssdlite_mobilenetv2_scratch_600e_coco_20210629_110627-974d9307.pth',
-                    help='checkpoint path of the model')
 
 args = parser.parse_args()
 
-model = init_detector(args.config, args.model)
-
 files = os.listdir(f'data/{args.dataset}')
 files.sort()
+
+color = {
+    2: (0, 0, 255),
+    5: (0, 255, 0),
+    7: (255, 0, 0)
+}
 
 os.makedirs(args.output, exist_ok=True)
 
 if 'pkl' in args.result:
     with open(args.result, 'rb') as f:
         result = pickle.load(f)
-    for i, file in enumerate(files):
-        if i < args.begin:
-            continue
-        if i >= args.end:
-            break
+    with open(f'data/annotations/{args.dataset}.gt.json') as f:
+        gt = json.load(f)
+    if "ignored_regions" in gt:
+        print('Ignored regions detected, start filtering...')
+        filter_result(result, gt['ignored_regions'])
+        print('Filtering finished!')
+    for i in range(args.begin, args.end):
         print(i)
-        image = f'data/{args.dataset}/{file}'
-        model.show_result(image, result[i], out_file=f'{args.output}/{i:06d}.jpg', score_thr=0.0)
+        img = cv2.imread(f'data/{args.dataset}/{files[i]}')
+        for j, class_result in enumerate(result[i]):
+            if j not in color:
+                continue
+            for bbox in class_result:
+                if bbox[4] >= 0.3:
+                    cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color[j], 3)
+        cv2.imwrite(f'{args.output}/{i:06d}.jpg', img)
 elif 'json' in args.result:
     with open(args.result) as f:
         result = json.load(f)

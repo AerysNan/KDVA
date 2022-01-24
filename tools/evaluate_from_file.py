@@ -1,4 +1,5 @@
 import sys
+import json
 import pickle
 import argparse
 
@@ -6,7 +7,38 @@ from mmcv import Config
 from mmdet.datasets import build_dataset
 
 
-def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py'):
+def intersect(rec1, rec2):
+    return not (rec1[2] <= rec2[0] or
+                rec1[3] <= rec2[1] or
+                rec1[0] >= rec2[2] or
+                rec1[1] >= rec2[3])
+
+
+def iou(boxA, boxB):
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    if boxAArea == 0:
+        return 1
+    # iou = interArea / float(boxAArea + boxBArea - interArea)
+    iou = interArea / float(boxAArea)
+    return iou
+
+
+def filter_result(result, ignored_regions, threshold=0.5):
+    for region in ignored_regions:
+        for i in range(region['begin'], region['end']):
+            for j, class_result in enumerate(result[i]):
+                indices = []
+                for bbox in class_result:
+                    indices.append(iou(bbox, region['region']) < threshold)
+                result[i][j] = class_result[indices]
+
+
+def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', threshold=0.5):
     cfg = Config.fromfile(config)
     cfg.data.test.ann_file = gt_path
     cfg.data.test.img_prefix = ""
@@ -21,6 +53,12 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py'):
         sys.exit(1)
     if type(result) == list and type(result[0]) != list:
         result = [result]
+    with open(gt_path) as f:
+        gt = json.load(f)
+    if "ignored_regions" in gt:
+        print('Ignored regions detected, start filtering...')
+        filter_result(result, gt['ignored_regions'], threshold)
+        print('Filtering finished!')
     return dataset.evaluate(result, metric="bbox")
 
 
@@ -35,5 +73,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gt", "-g", help="ground truth file path", type=str, required=True
     )
+    parser.add_argument(
+        "--threshold", "-t", help="iou threshold", type=float, default=0.5
+    )
     args = parser.parse_args()
-    print(evaluate_from_file(args.result, args.gt, args.config)["bbox_mAP"])
+    print(evaluate_from_file(args.result, args.gt, args.config, args.threshold)["bbox_mAP"])

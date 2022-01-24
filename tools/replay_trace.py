@@ -5,6 +5,7 @@ import argparse
 
 from mmcv import Config
 from mmdet.datasets import build_dataset
+from evaluate_from_file import evaluate_from_file
 
 ORIGINAL_FRAMERATE = 500
 
@@ -40,10 +41,8 @@ def replay_trace(path, name, framerate, batch_size):
                 result.append(copy.deepcopy(previous))
         # mAP.append(dataset.evaluate(result, metric='bbox')['bbox_mAP'])
         results.extend(result)
-    cfg.data.test.ann_file = f'data/annotations/{key}.gt.json'
-    cfg.data.test.img_prefix = ''
-    dataset = build_dataset(cfg.data.test)
-    mAP.append(dataset.evaluate(results, metric='bbox')['bbox_mAP'])
+
+    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.gt.json')['bbox_mAP'])
     return mAP
 
 

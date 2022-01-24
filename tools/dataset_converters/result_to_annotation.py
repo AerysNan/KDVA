@@ -6,7 +6,7 @@ import pycocotools
 parser = argparse.ArgumentParser(description='Convert result to annotation file')
 parser.add_argument('--path', '-p', help='result file path', type=str, required=True)
 parser.add_argument('--dataset', '-d', help='dataset name', type=str, required=True)
-parser.add_argument('--threshold', '-t', type=float, default=0.5, help='confidence threshold for result filter')
+parser.add_argument('--threshold', '-t', type=float, default=0.4, help='confidence threshold for result filter')
 args = parser.parse_args()
 
 with open(args.path, 'rb') as f:
@@ -18,6 +18,8 @@ uid = 0
 
 for i, frame_result in enumerate(results):
     for j, class_result in enumerate(frame_result):
+        if j != 2 and j != 5 and j != 7:
+            continue
         for bbox in class_result:
             bbox_list = bbox.tolist()
             if bbox_list[4] < args.threshold:

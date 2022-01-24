@@ -19,6 +19,7 @@ output_annotation = {
     'images': [],
     'annotations': [],
     'categories': [],
+    'ignored_regions': []
 }
 
 datasets = []
@@ -49,6 +50,11 @@ for i, dataset in enumerate(datasets):
         global_id += 1
         output_annotation['annotations'].append(annotation)
     output_annotation['categories'] = dataset_annotation['categories']
+    if 'ignored_regions' in dataset_annotation:
+        for region in dataset_annotation['ignored_regions']:
+            region['begin'] += dataset_offset[-1]
+            region['end'] += dataset_offset[-1]
+            output_annotation['ignored_regions'].append(region)
 
 with open(f'data/annotations/{args.output}.gt.json', 'w') as f:
     json.dump(output_annotation, f)
