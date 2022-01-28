@@ -47,11 +47,10 @@ def allocate(bottleneck, profit_matrix):
     return choice
 
 
-def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix, overwrite):
-    postfix = f'-{postfix}' if postfix is not None else ''
+def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix, overwrite=None):
     with open('datasets.json') as f:
         datasets = json.load(f)
-    with open(f'configs/cache/map_retrain{postfix}.pkl', 'rb') as f:
+    with open(f'configs/cache/map_retrain-{postfix}.pkl', 'rb') as f:
         mmap = pickle.load(f)[:, :n_stream, :]
     mmap_total = mmap[:, :, -1]
     mmap_distill = mmap[:, :, :-1]
@@ -62,6 +61,7 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix, overwrite):
     if overwrite is not None:
         with open(overwrite, 'rb') as f:
             mmap_distill = pickle.load(f)
+
     streams = []
     for i, stream in enumerate(datasets):
         if i >= n_stream:
@@ -88,7 +88,7 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix, overwrite):
         for stream in range(n_stream):
             name = streams[stream]
             for i in range(epoch * batch_size, epoch * batch_size + batch_size):
-                with open(f'snapshot/result/{name}_{choices[epoch, stream]}{postfix}/{i:06d}.pkl', 'rb') as f:
+                with open(f'snapshot/result/{name}_{postfix}-{choices[epoch, stream]}/{i:06d}.pkl', 'rb') as f:
                     result = pickle.load(f)
                 results[stream].append(result)
         # decide distillation choice for next epoch
@@ -141,12 +141,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fake distill')
     parser.add_argument('--throughput', '-t', type=int, default=3, help='average uplink throughput for each stream')
     parser.add_argument('--optimal', '-o', type=ast.literal_eval, default=True, help='use optimal knowledge')
-    parser.add_argument('--aggresive', '-a', type=ast.literal_eval, default=True, help='use DP')
+    parser.add_argument('--use-dp', '-d', type=ast.literal_eval, default=True, help='use DP')
     parser.add_argument('--stream', '-n', type=int, default=12, help='number of streams')
     parser.add_argument('--postfix', '-p', type=str, default=None, help='dataset postfix')
     parser.add_argument('--overwrite', '-v', type=str, default=None, help='overwrite file')
     args = parser.parse_args()
-    baseline_map_total, aca_map_total = fake_distill(args.throughput, args.optimal, args.aggresive, args.stream, args.postfix, args.overwrite)
+    baseline_map_total, aca_map_total = fake_distill(args.throughput, args.optimal, args.use_dp, args.stream, args.postfix, args.overwrite)
     print('baseline')
     for v in baseline_map_total:
         print(v)

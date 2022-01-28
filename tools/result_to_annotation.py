@@ -1,7 +1,7 @@
 import json
 import pickle
 import argparse
-import pycocotools
+from evaluate_from_file import filter_result
 
 parser = argparse.ArgumentParser(description='Convert result to annotation file')
 parser.add_argument('--path', '-p', help='result file path', type=str, required=True)
@@ -14,12 +14,14 @@ with open(args.path, 'rb') as f:
 
 with open(f'data/annotations/{args.dataset}.base.json') as f:
     data = json.load(f)
+with open(f'data/annotations/{args.dataset}.gt.json') as f:
+    gt = json.load(f)
 uid = 0
+# if 'ignored_regions' in gt:
+#     filter_result(results, gt['ignored_regions'])
 
 for i, frame_result in enumerate(results):
     for j, class_result in enumerate(frame_result):
-        if j != 2 and j != 5 and j != 7:
-            continue
         for bbox in class_result:
             bbox_list = bbox.tolist()
             if bbox_list[4] < args.threshold:

@@ -59,7 +59,7 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', thr
         print('Ignored regions detected, start filtering...')
         filter_result(result, gt['ignored_regions'], threshold)
         print('Filtering finished!')
-    return dataset.evaluate(result, metric="bbox")
+    return dataset.evaluate(result, metric="bbox", classwise=True)
 
 
 if __name__ == "__main__":
@@ -77,4 +77,4 @@ if __name__ == "__main__":
         "--threshold", "-t", help="iou threshold", type=float, default=0.5
     )
     args = parser.parse_args()
-    print(evaluate_from_file(args.result, args.gt, args.config, args.threshold)["bbox_mAP"])
+    print(evaluate_from_file(args.result, args.gt, args.config, args.threshold))

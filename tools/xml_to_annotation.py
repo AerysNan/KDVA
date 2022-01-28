@@ -32,9 +32,9 @@ def parse_annotation(target, num):
         'iscrowd': 0,
     }
     annotation['area'] = annotation['bbox'][2] * annotation['bbox'][3]
-    if category == 'car' or category == 'van':
+    if category == 'car':
         annotation['category_id'] = 2
-    elif category == 'others':
+    elif category == 'others' or category == 'van':
         annotation['category_id'] = 7
     elif category == 'bus':
         annotation['category_id'] = 5
