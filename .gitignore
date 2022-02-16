@@ -6,7 +6,6 @@ dump/
 snapshot/
 images/
 __pycache__/
-configs/custom/*
 *.pb.go
 *pb2.py
 *pb2_grpc.py
