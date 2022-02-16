@@ -142,8 +142,8 @@ lr_config = dict(
 runner = dict(type='EpochBasedRunner', max_epochs=120)
 
 # Avoid evaluation and saving weights too frequently
-evaluation = dict(interval=5, metric='bbox')
-checkpoint_config = dict(interval=5)
+evaluation = dict(interval=20, metric='bbox', classwise=True)
+checkpoint_config = dict(interval=20)
 custom_hooks = [
     dict(type='NumClassCheckHook'),
     dict(type='CheckInvalidLossHook', interval=50, priority='VERY_LOW')

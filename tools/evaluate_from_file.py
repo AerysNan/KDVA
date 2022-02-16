@@ -28,9 +28,9 @@ def iou(boxA, boxB):
     return iou
 
 
-def filter_result(result, ignored_regions, threshold=0.5):
+def filter_result(result, ignored_regions, start, threshold=0.5):
     for region in ignored_regions:
-        for i in range(region['begin'], region['end']):
+        for i in range(region['begin'] - start, region['end'] - start):
             for j, class_result in enumerate(result[i]):
                 indices = []
                 for bbox in class_result:
@@ -57,7 +57,8 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', thr
         gt = json.load(f)
     if "ignored_regions" in gt:
         print('Ignored regions detected, start filtering...')
-        filter_result(result, gt['ignored_regions'], threshold)
+        start = min([image['id'] for image in gt['images']])
+        filter_result(result, gt['ignored_regions'], start, threshold)
         print('Filtering finished!')
     return dataset.evaluate(result, metric="bbox", classwise=True)
 
@@ -77,4 +78,5 @@ if __name__ == "__main__":
         "--threshold", "-t", help="iou threshold", type=float, default=0.5
     )
     args = parser.parse_args()
+
     print(evaluate_from_file(args.result, args.gt, args.config, args.threshold))

@@ -6,10 +6,11 @@ import argparse
 from evaluate_from_file import evaluate_from_file
 
 
-def range_evaluation(result, dataset, count):
+def range_evaluation(result, dataset, count, postfix):
     l = []
     for i in range(count):
-        l.append(evaluate_from_file(f'snapshot/result/{result}/{i:02d}.pkl', f'data/annotations/{dataset}_test_{i}.gt.json'))
+        path = f'/{postfix}' if postfix is not None else ''
+        l.append(evaluate_from_file(f'snapshot/result/{result}{path}/{i:02d}.pkl', f'data/annotations/{dataset}_test_{i}.gt.json'))
     return l
 
 
@@ -20,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', '-c', help='config file path', type=str, default='configs/custom/ssd.py')
     parser.add_argument('--count', '-n', help='number of splitted ranges', type=int, default=15)
     parser.add_argument('--summary', '-s', help='whether to evaluate the whole sequence', type=ast.literal_eval, default=False)
+    parser.add_argument('--postfix', '-p', help='postfix', type=str, default=None)
     args = parser.parse_args()
 
     with open('datasets.json') as f:
@@ -29,8 +31,12 @@ if __name__ == '__main__':
     else:
         key = args.dataset
     n = datasets[key]['size']
-    l = range_evaluation(args.result, args.dataset, args.count)
+    l = range_evaluation(args.result, args.dataset, args.count, args.postfix)
     if args.summary:
-        l.append(evaluate_from_file(f'snapshot/merge/{args.result}.pkl', f'data/annotations/{key}.gt.json'))
+        path = f'_{args.postfix}' if args.postfix is not None else ''
+        l.append(evaluate_from_file(f'snapshot/merge/{args.result}{path}.pkl', f'data/annotations/{key}.gt.json'))
     for v in l:
         print(v['bbox_mAP'])
+    print('classwise')
+    for v in l:
+        print(v['classwise'][2][1])

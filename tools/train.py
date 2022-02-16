@@ -70,6 +70,7 @@ def parse_args():
         help='job launcher')
     parser.add_argument('--train-dataset', help='customized dataset name', type=str, default=None)
     parser.add_argument('--val-dataset', help='customized dataset name', type=str, default=None)
+    parser.add_argument('--load-from', help='load from checkpoint file path', type=str, default=None)
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -141,18 +142,18 @@ def main():
     env_info_dict = collect_env()
     env_info = '\n'.join([(f'{k}: {v}') for k, v in env_info_dict.items()])
     dash_line = '-' * 60 + '\n'
-    logger.info('Environment info:\n' + dash_line + env_info + '\n' +
-                dash_line)
+    # logger.info('Environment info:\n' + dash_line + env_info + '\n' +
+    # dash_line)
     meta['env_info'] = env_info
     meta['config'] = cfg.pretty_text
     # log some basic info
-    logger.info(f'Distributed training: {distributed}')
-    logger.info(f'Config:\n{cfg.pretty_text}')
+    # logger.info(f'Distributed training: {distributed}')
+    # logger.info(f'Config:\n{cfg.pretty_text}')
 
     # set random seeds
     if args.seed is not None:
-        logger.info(f'Set random seed to {args.seed}, '
-                    f'deterministic: {args.deterministic}')
+        # logger.info(f'Set random seed to {args.seed}, '
+        # f'deterministic: {args.deterministic}')
         set_random_seed(args.seed, deterministic=args.deterministic)
     cfg.seed = args.seed
     meta['seed'] = args.seed
@@ -167,8 +168,10 @@ def main():
         cfg.data.train.ann_file = f'data/annotations/{args.train_dataset}.golden.json'
         cfg.data.train.img_prefix = ''
     if args.val_dataset is not None:
-        cfg.data.val.ann_file = f'data/annotations/{args.val_dataset}.golden.json'
+        cfg.data.val.ann_file = f'data/annotations/{args.val_dataset}.gt.json'
         cfg.data.val.img_prefix = ''
+    if args.load_from is not None:
+        cfg.load_from = args.load_from
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:
         val_dataset = copy.deepcopy(cfg.data.val)

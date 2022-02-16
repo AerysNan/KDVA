@@ -1,17 +1,26 @@
-import copy
 import json
 import pickle
 import argparse
 
-from mmcv import Config
-from mmdet.datasets import build_dataset
 from evaluate_from_file import evaluate_from_file
-
 ORIGINAL_FRAMERATE = 500
 
 
+def generate_sample_position(sample_count, sample_interval):
+    sample_win, total = [1 for _ in range(sample_count)], sample_count
+    while total < sample_interval:
+        for i in range(sample_count):
+            sample_win[i] += 1
+            total += 1
+            if total == sample_interval:
+                break
+    pos = [0]
+    for i in range(sample_count - 1):
+        pos.append(pos[-1] + sample_win[i])
+    return pos
+
+
 def replay_trace(path, name, framerate, batch_size):
-    cfg = Config.fromfile('configs/custom/ssd.py')
     with open('datasets.json') as f:
         datasets = json.load(f)
     if not name in datasets:
@@ -22,27 +31,20 @@ def replay_trace(path, name, framerate, batch_size):
     if type(framerate) == int:
         framerate = [framerate for _ in range(n_epoch)]
     results = []
-    with open(f'{path}/000000.pkl', 'rb') as f:
-        previous = pickle.load(f)
     mAP = []
     for i in range(n_epoch):
-        begin, end, stride = i * batch_size, i * batch_size + batch_size, ORIGINAL_FRAMERATE // framerate[i]
-        # cfg.data.test.ann_file = f'data/annotations/{name}_test_{i}.gt.json'
-        # cfg.data.test.img_prefix = ''
-        # dataset = build_dataset(cfg.data.test)
-        result = []
-        for j in range(begin, end):
-            if j % stride == 0:
-                with open(f'{path}/{j:06d}.pkl', 'rb') as f:
-                    o = pickle.load(f)
-                    result.append(o)
-                    previous = o
-            else:
-                result.append(copy.deepcopy(previous))
-        # mAP.append(dataset.evaluate(result, metric='bbox')['bbox_mAP'])
+        with open(f'{path}/{i:02d}.pkl', 'rb') as f:
+            result = pickle.load(f)
+        positions = generate_sample_position(framerate[i], ORIGINAL_FRAMERATE)
+        for j in range(len(positions) - 1):
+            for k in range(positions[j] + 1, positions[j + 1]):
+                result[k] = result[positions[j]]
+        for k in range(positions[-1] + 1, len(result)):
+            result[k] = result[positions[-1]]
+        mAP.append(evaluate_from_file(result, f'data/annotations/{name}_test_{i}.gt.json'))
         results.extend(result)
 
-    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.gt.json')['bbox_mAP'])
+    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.gt.json'))
     return mAP
 
 
@@ -56,4 +58,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mAPs = replay_trace(args.path, args.dataset, args.framerate, args.size)
     for mAP in mAPs:
-        print(mAP)
+        print(mAP['bbox_mAP'])
+    print('classwise')
+    for mAP in mAPs:
+        print(mAP['classwise'][2][1])

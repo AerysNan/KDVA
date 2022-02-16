@@ -56,13 +56,13 @@ for stream_index, prefix in enumerate(dataset):
         for _ in range(epoch_count)
     ]
 
-    # annotation_val_list = [
-    #     {"images": [], "annotations": [], "categories": annotation_all["categories"]}
-    #     for _ in range(epoch_count)
-    # ]
+    annotation_val_list = [
+        {"images": [], "annotations": [], "categories": annotation_all["categories"]}
+        for _ in range(epoch_count)
+    ]
 
     annotation_test_list = [
-        {"images": [], "annotations": [], "categories": annotation_all["categories"]}
+        {"images": [], "annotations": [], "categories": annotation_all["categories"], "ignored_regions":[]}
         for _ in range(epoch_count)
     ]
 
@@ -93,9 +93,19 @@ for stream_index, prefix in enumerate(dataset):
         #     annotation_val_list[epoch]["annotations"].append(annotation)
 
     for epoch in range(epoch_count):
+        for ignored_region in annotation_all["ignored_regions"]:
+            l, r = max(ignored_region['begin'], epoch * epoch_size), min(ignored_region['end'], epoch * epoch_size + epoch_size)
+            if l < r:
+                annotation_test_list[epoch]["ignored_regions"].append({
+                    "begin": l,
+                    "end": r,
+                    "region": ignored_region["region"]
+                })
         with open(f"data/annotations/{prefix}{postfix}_train_{epoch}.golden.json", "w") as f:
             json.dump(annotation_train_list[epoch], f)
         with open(f"data/annotations/{prefix}{postfix}_test_{epoch}.gt.json", "w") as f:
+            json.dump(annotation_test_list[epoch], f)
+        with open(f"data/annotations/{prefix}_test_{epoch}.gt.json", "w") as f:
             json.dump(annotation_test_list[epoch], f)
         # with open(f"data/annotations/{prefix}{postfix}_val_{epoch}.golden.json", "w") as f:
         #     json.dump(annotation_val_list[epoch], f)
