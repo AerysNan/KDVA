@@ -7,9 +7,9 @@ import argparse
 import pickle
 
 from evaluate_from_file import evaluate_from_file
-from train_new import train
+from tools.train import train
 from torch.multiprocessing import Pool
-from test_new import test
+from tools.test import test
 from merge_result import merge_result
 
 
