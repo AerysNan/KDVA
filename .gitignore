@@ -4,8 +4,10 @@ bin/
 tmp*
 dump/
 snapshot/
-images/
+/cache/
+images*/
 __pycache__/
+log/
 *.pb.go
 *pb2.py
 *pb2_grpc.py

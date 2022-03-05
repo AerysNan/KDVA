@@ -15,7 +15,7 @@ results = None
 
 
 def choice_to_distill(choice):
-    return choice * 20
+    return f'{choice * 20:03d}'
 
 
 def eval(cfg, stream):
@@ -54,14 +54,17 @@ def allocate(bottleneck, profit_matrix):
 def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
     with open('datasets.json') as f:
         datasets = json.load(f)
-    with open(f'configs/cache/map_distill.pkl', 'rb') as f:
+    with open(f'configs/cache/map_distill_golden_{postfix}.pkl', 'rb') as f:
         mmap = pickle.load(f)[:, :n_stream, :]
-    mmap_total = mmap[:, :, -1]
-    mmap_distill = mmap[:, :, :-1]
-    n_config, n_stream, n_epoch = mmap_distill.shape
+    with open(f'configs/cache/map_distill_class_golden_{postfix}.pkl', 'rb') as f:
+        mmap_class = pickle.load(f)[:, :n_stream, :]
+    mmap_total, mmap_total_class = mmap[:, :, -1], mmap_class[:, :, -1]
+    mmap_distill, mmap_distill_class = mmap[:, :, :-1], mmap_class[:, :, :-1]
+    n_config, n_stream, n_epoch = mmap_distill_class.shape
 
     if not optimal:
-        mmap_distill = np.concatenate((np.zeros((n_config, n_stream, 2)), mmap_distill[:, :, 1: -1]), axis=2)
+        with open(f'configs/cache/map_distill_class_val_{postfix}.pkl', 'rb') as f:
+            mmap_distill_class = pickle.load(f)
     streams = []
     for i, stream in enumerate(datasets):
         if i >= n_stream:
@@ -72,9 +75,8 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
         sys.exit(1)
 
     bottleneck = average_tpt * n_stream
-    baseline_map_total = mmap_total[average_tpt]
-    aca_map_total = np.zeros(baseline_map_total.shape)
-    aca_map_class = np.zeros(baseline_map_total.shape)
+    baseline_map, baseline_map_class = mmap_total[average_tpt], mmap_total_class[average_tpt]
+    aca_map, aca_map_class = np.zeros(baseline_map.shape), np.zeros(baseline_map.shape)
     global results
     results = [[] for _ in range(n_stream)]
 
@@ -87,7 +89,10 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
         # collect result based on previous choice
         for stream in range(n_stream):
             name = streams[stream]
-            with open(f'snapshot/result/{name}_{choice_to_distill(choices[epoch, stream]):03d}-{postfix}/{epoch:02d}.pkl', 'rb') as f:
+            path = f'{name}_{choice_to_distill(choices[epoch, stream])}'
+            if '000' not in path:
+                path += f'_{postfix}'
+            with open(f'snapshot/result/{path}/{epoch:02d}.pkl', 'rb') as f:
                 result = pickle.load(f)
             results[stream].extend(result)
         # decide distillation choice for next epoch
@@ -95,7 +100,7 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
             if epoch == 0 and not optimal:
                 choices[epoch + 1, :] = average_tpt
             else:
-                mmap_observation_epoch = mmap_distill[:, :, epoch + 1]
+                mmap_observation_epoch = mmap_distill_class[:, :, epoch + 1]
                 # start DP
                 if optimal or use_dp:
                     current_choice = allocate(bottleneck, mmap_observation_epoch)
@@ -122,8 +127,8 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
 
     for stream in range(n_stream):
         name = streams[stream]
-        cfg = Config.fromfile('configs/custom/ssd.py')
-        cfg.data.test.ann_file = f'data/annotations/{name}.gt.json'
+        cfg = Config.fromfile('configs/custom/ssd_base.py')
+        cfg.data.test.ann_file = f'data/annotations/{name}.golden.json'
         cfg.data.test.img_prefix = ''
         output.append(pool.apply_async(eval, (cfg, stream,)))
     pool.close()
@@ -131,11 +136,11 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
     for i in range(n_stream):
         try:
             result = output[i].get(600)
-            aca_map_total[result['id']] = result['mAP']['bbox_mAP']
-            aca_map_class[result['id']] = result['mAP']['classwise'][2][1]
+            aca_map[result['id']] = result['mAP']['bbox_mAP']
+            aca_map_class[result['id']] = result['mAP']["bbox_mAP_car"]
         except:
             print('Timeout occurred!')
-    return baseline_map_total, aca_map_total, aca_map_class
+    return baseline_map, baseline_map_class, aca_map, aca_map_class
 
 
 if __name__ == '__main__':
@@ -144,12 +149,8 @@ if __name__ == '__main__':
     parser.add_argument('--optimal', '-o', type=ast.literal_eval, default=True, help='use optimal knowledge')
     parser.add_argument('--use-dp', '-d', type=ast.literal_eval, default=False, help='use DP')
     parser.add_argument('--stream', '-n', type=int, default=4, help='number of streams')
-    parser.add_argument('--postfix', '-p', type=str, default="500_all_acc", help='dataset postfix')
+    parser.add_argument('--postfix', '-p', type=str, default="short", help='dataset postfix')
     args = parser.parse_args()
-    baseline_map_total, aca_map_total, aca_map_class = fake_distill(args.throughput, args.optimal, args.use_dp, args.stream, args.postfix)
-    print('baseline')
-    print(f'{sum(baseline_map_total) / args.stream:.3f}')
-    print('aca')
-    print(f'{sum(aca_map_total) / args.stream:.3f}')
-    print('classwise')
-    print(f'{sum(aca_map_class) / args.stream:.3f}')
+    baseline_map, baseline_map_class, aca_map, aca_map_class = fake_distill(args.throughput, args.optimal, args.use_dp, args.stream, args.postfix)
+    print(f'baseline: {sum(baseline_map) / args.stream:.3f} classwise: {sum(baseline_map_class) / args.stream:.3f}')
+    print(f'aca: {sum(aca_map) / args.stream:.3f} classwise: {sum(aca_map_class) / args.stream:.3f}')

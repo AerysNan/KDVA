@@ -19,7 +19,7 @@ from mmdet.models import build_detector
 from mmdet.utils import collect_env, get_root_logger
 
 
-def train(config, work_dir, train_dataset, val_dataset, load_from, resume_from=None, no_validate=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
+def train(config, work_dir, train_dataset=None, val_dataset=None, test_dataset=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, no_test=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
     cfg = Config.fromfile(config)
     if cfg_options is not None:
         cfg.merge_from_dict(cfg_options)
@@ -100,13 +100,26 @@ def train(config, work_dir, train_dataset, val_dataset, load_from, resume_from=N
     if val_dataset is not None:
         cfg.data.val.ann_file = f'data/annotations/{val_dataset}.gt.json'
         cfg.data.val.img_prefix = ''
+    else:
+        no_validate = True
+    if test_dataset is not None:
+        cfg.data.test.ann_file = f'data/annotations/{test_dataset}.gt.json'
+        cfg.data.test.img_prefix = ''
+    else:
+        no_test = True
     if load_from is not None:
         cfg.load_from = load_from
+    if max_epochs is not None:
+        cfg.runner.max_epochs = max_epochs
     datasets = [build_dataset(cfg.data.train)]
-    if len(cfg.workflow) == 2:
+    if len(cfg.workflow) >= 2:
         val_dataset = copy.deepcopy(cfg.data.val)
         val_dataset.pipeline = cfg.data.train.pipeline
         datasets.append(build_dataset(val_dataset))
+    if len(cfg.workflow) >= 3:
+        test_dataset = copy.deepcopy(cfg.data.test)
+        test_dataset.pipeline = cfg.data.train.pipeline
+        datasets.append(build_dataset(test_dataset))
     if cfg.checkpoint_config is not None:
         # save mmdet version, config file content and class names in
         # checkpoints as meta data
@@ -121,6 +134,7 @@ def train(config, work_dir, train_dataset, val_dataset, load_from, resume_from=N
         cfg,
         distributed=distributed,
         validate=(not no_validate),
+        test=(not no_test),
         timestamp=timestamp,
         meta=meta)
 
@@ -133,6 +147,10 @@ if __name__ == '__main__':
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(
         '--no-validate',
+        action='store_true',
+        help='whether not to evaluate the checkpoint during training')
+    parser.add_argument(
+        '--no-test',
         action='store_true',
         help='whether not to evaluate the checkpoint during training')
     group_gpus = parser.add_mutually_exclusive_group()
@@ -174,9 +192,11 @@ if __name__ == '__main__':
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
-    parser.add_argument('--train-dataset', help='customized dataset name', type=str, default=None)
-    parser.add_argument('--val-dataset', help='customized dataset name', type=str, default=None)
+    parser.add_argument('--train-dataset', help='customized train dataset name', type=str, default=None)
+    parser.add_argument('--val-dataset', help='customized validation dataset name', type=str, default=None)
+    parser.add_argument('--test-dataset', help='customized test dataset name', type=str, default=None)
     parser.add_argument('--load-from', help='load from checkpoint file path', type=str, default=None)
+    parser.add_argument('--max-epochs', help='maximum training epochs', type=int, default=None)
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:

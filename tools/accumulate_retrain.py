@@ -21,7 +21,7 @@ def parallel_test(stream, epoch, gpu, model, out):
     print(f'test stream {stream} at epoch {epoch} with model {model}')
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     try:
-        test('configs/custom/ssd_all.py', model, f'tmp_{stream}/{out}.pkl', f'{stream}_test_{epoch}')
+        test('configs/custom/ssd_base.py', model, f'tmp_{stream}/{out}.pkl', f'{stream}_test_{epoch}')
     except Exception as err:
         print(err)
     print(f'test stream {stream} at epoch {epoch} with model {model} finished')
@@ -31,7 +31,7 @@ def parallel_train(stream, retrain, epoch, gpu, postfix):
     print(f'train stream {stream} at epoch {epoch} with retrain {retrain}')
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     try:
-        train('configs/custom/ssd_all.py', f'tmp_{stream}/{retrain}', f'{stream}_{choice_to_distill(retrain):03d}-{postfix}_train_{epoch}', None, f'tmp_{stream}/latest.pth')
+        train('configs/custom/ssd_base.py', f'tmp_{stream}/{retrain}', f'{stream}_{choice_to_distill(retrain):03d}-{postfix}_train_{epoch}', None, f'tmp_{stream}/latest.pth')
     except Exception as err:
         print(err)
     print(f'train stream {stream} at epoch {epoch} with retrain {retrain} finished')

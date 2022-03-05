@@ -43,8 +43,8 @@ if "ignored_regions" in source_annotations:
     for region in source_annotations['ignored_regions']:
         if region['begin'] >= args.end or region['end'] <= args.begin:
             continue
-        region['begin'] = max(region['begin'], args.begin)
-        region['end'] = min(region['end'], args.end)
+        region['begin'] = max(region['begin'], args.begin) - args.begin
+        region['end'] = min(region['end'], args.end) - args.begin
         target_annotations['ignored_regions'].append(region)
 with open(f'data/annotations/{args.target}.gt.json', 'w') as f:
     json.dump(target_annotations, f)
