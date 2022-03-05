@@ -1,16 +1,12 @@
-import ast
 import json
-import pickle
 import argparse
-
-import numpy as np
 
 parser = argparse.ArgumentParser(description="Generate config file")
 parser.add_argument(
     "--path", "-p", help="path to dataset file", type=str, default="datasets.json"
 )
 parser.add_argument(
-    "--size", "-s", help="size of splitted dataset", type=int, default=600
+    "--size", "-s", help="size of splitted dataset", type=int, default=500
 )
 parser.add_argument("--rate", "-r", help="sampling rate of training dataset", type=str)
 parser.add_argument("--postfix", "-o", help="generated postfix", type=str)
@@ -35,14 +31,15 @@ def generate_sample_position(sample_count, sample_interval):
             total += 1
             if total == sample_interval:
                 break
-    pos = [0]
+    pos_test, pos_val = [0], [(sample_win[0] + 1) // 2]
     for i in range(sample_count - 1):
-        pos.append(pos[-1] + sample_win[i])
-    return pos
+        pos_test.append(pos_test[-1] + sample_win[i])
+        pos_val.append(pos_test[-1] + (sample_win[i + 1] + 1) // 2)
+    return pos_test, pos_val
 
 
 sample_count, sample_interval = [int(v) for v in args.rate.split('/')]
-sample_pos = generate_sample_position(sample_count, sample_interval)
+sample_pos_test, sample_pos_val = generate_sample_position(sample_count, sample_interval)
 
 for stream_index, prefix in enumerate(dataset):
 
@@ -61,7 +58,12 @@ for stream_index, prefix in enumerate(dataset):
         for _ in range(epoch_count)
     ]
 
-    annotation_test_list = [
+    annotation_test_gt_list = [
+        {"images": [], "annotations": [], "categories": annotation_all["categories"], "ignored_regions":[]}
+        for _ in range(epoch_count)
+    ]
+
+    annotation_test_golden_list = [
         {"images": [], "annotations": [], "categories": annotation_all["categories"], "ignored_regions":[]}
         for _ in range(epoch_count)
     ]
@@ -69,43 +71,54 @@ for stream_index, prefix in enumerate(dataset):
     for image in annotation_all["images"]:
         epoch = image["id"] // epoch_size
         offset = image["id"] % epoch_size
-        annotation_test_list[epoch]["images"].append(image)
+        annotation_test_gt_list[epoch]["images"].append(image)
+
     for image in annotation_golden["images"]:
-        # for image in annotation_all["images"]:
         epoch = image["id"] // epoch_size
         offset = image["id"] % epoch_size
-        if offset % sample_interval in sample_pos:
+        annotation_test_golden_list[epoch]["images"].append(image)
+
+    for image in annotation_golden["images"]:
+        epoch = image["id"] // epoch_size
+        offset = image["id"] % epoch_size
+        if offset % sample_interval in sample_pos_test:
             annotation_train_list[epoch]["images"].append(image)
-        # if offset % sample_interval == (sample_interval // 2):
-        #     annotation_val_list[epoch]["images"].append(image)
+        if offset % sample_interval in sample_pos_val:
+            annotation_val_list[epoch]["images"].append(image)
 
     for annotation in annotation_all["annotations"]:
         epoch = annotation["image_id"] // epoch_size
         offset = annotation["image_id"] % epoch_size
-        annotation_test_list[epoch]["annotations"].append(annotation)
+        annotation_test_gt_list[epoch]["annotations"].append(annotation)
+
     for annotation in annotation_golden["annotations"]:
-        # for annotation in annotation_all["annotations"]:
         epoch = annotation["image_id"] // epoch_size
         offset = annotation["image_id"] % epoch_size
-        if offset % sample_interval in sample_pos:
+        annotation_test_golden_list[epoch]["annotations"].append(annotation)
+
+    for annotation in annotation_golden["annotations"]:
+        epoch = annotation["image_id"] // epoch_size
+        offset = annotation["image_id"] % epoch_size
+        if offset % sample_interval in sample_pos_test:
             annotation_train_list[epoch]["annotations"].append(annotation)
-        # elif offset % sample_interval == (sample_interval // 2):
-        #     annotation_val_list[epoch]["annotations"].append(annotation)
+        elif offset % sample_interval in sample_pos_val:
+            annotation_val_list[epoch]["annotations"].append(annotation)
 
     for epoch in range(epoch_count):
-        for ignored_region in annotation_all["ignored_regions"]:
-            l, r = max(ignored_region['begin'], epoch * epoch_size), min(ignored_region['end'], epoch * epoch_size + epoch_size)
-            if l < r:
-                annotation_test_list[epoch]["ignored_regions"].append({
-                    "begin": l,
-                    "end": r,
-                    "region": ignored_region["region"]
-                })
+        if 'ignored_regions' in annotation_all:
+            for ignored_region in annotation_all["ignored_regions"]:
+                l, r = max(ignored_region['begin'], epoch * epoch_size), min(ignored_region['end'], epoch * epoch_size + epoch_size)
+                if l < r:
+                    annotation_test_gt_list[epoch]["ignored_regions"].append({
+                        "begin": l,
+                        "end": r,
+                        "region": ignored_region["region"]
+                    })
         with open(f"data/annotations/{prefix}{postfix}_train_{epoch}.golden.json", "w") as f:
             json.dump(annotation_train_list[epoch], f)
-        with open(f"data/annotations/{prefix}{postfix}_test_{epoch}.gt.json", "w") as f:
-            json.dump(annotation_test_list[epoch], f)
         with open(f"data/annotations/{prefix}_test_{epoch}.gt.json", "w") as f:
-            json.dump(annotation_test_list[epoch], f)
-        # with open(f"data/annotations/{prefix}{postfix}_val_{epoch}.golden.json", "w") as f:
-        #     json.dump(annotation_val_list[epoch], f)
+            json.dump(annotation_test_gt_list[epoch], f)
+        with open(f"data/annotations/{prefix}_test_{epoch}.golden.json", "w") as f:
+            json.dump(annotation_test_golden_list[epoch], f)
+        with open(f"data/annotations/{prefix}{postfix}_val_{epoch}.gt.json", "w") as f:
+            json.dump(annotation_val_list[epoch], f)

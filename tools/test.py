@@ -236,4 +236,4 @@ if __name__ == '__main__':
     if args.options:
         warnings.warn('--options is deprecated in favor of --eval-options')
         args.eval_options = args.options
-    test(**args)
+    test(**args.__dict__)

@@ -61,4 +61,4 @@ if __name__ == '__main__':
         print(mAP['bbox_mAP'])
     print('classwise')
     for mAP in mAPs:
-        print(mAP['classwise'][2][1])
+        print(mAP["bbox_mAP_car"])

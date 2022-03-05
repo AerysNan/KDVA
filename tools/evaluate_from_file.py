@@ -38,7 +38,7 @@ def filter_result(result, ignored_regions, start, threshold=0.5):
                 result[i][j] = class_result[indices]
 
 
-def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', threshold=0.5):
+def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd_base.py', threshold=0.5):
     cfg = Config.fromfile(config)
     cfg.data.test.ann_file = gt_path
     cfg.data.test.img_prefix = ""
@@ -55,7 +55,7 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', thr
         result = [result]
     with open(gt_path) as f:
         gt = json.load(f)
-    if "ignored_regions" in gt:
+    if "ignored_regions" in gt and len(gt['ignored_regions']) > 0:
         print('Ignored regions detected, start filtering...')
         start = min([image['id'] for image in gt['images']])
         filter_result(result, gt['ignored_regions'], start, threshold)
@@ -66,7 +66,7 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd.py', thr
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MMDet evaluate from pickle file")
     parser.add_argument(
-        "--config", "-c", help="test config file path", default="configs/custom/ssd.py"
+        "--config", "-c", help="test config file path", default="configs/custom/ssd_base.py"
     )
     parser.add_argument(
         "--result", "-r", help="result file path", type=str, required=True
@@ -78,5 +78,5 @@ if __name__ == "__main__":
         "--threshold", "-t", help="iou threshold", type=float, default=0.5
     )
     args = parser.parse_args()
-
-    print(evaluate_from_file(args.result, args.gt, args.config, args.threshold))
+    evaluation = evaluate_from_file(args.result, args.gt, args.config, args.threshold)
+    print(f'mAP: {evaluation["bbox_mAP"]} classwise: {evaluation["bbox_mAP_car"]}')
