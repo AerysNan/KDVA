@@ -7,9 +7,9 @@ import argparse
 import pickle
 
 from evaluate_from_file import evaluate_from_file
-from tools.train import train
+from model_train import train
+from model_test import test
 from torch.multiprocessing import Pool
-from tools.test import test
 from merge_result import merge_result
 
 
@@ -21,7 +21,7 @@ def parallel_test(stream, epoch, gpu, model, out):
     print(f'test stream {stream} at epoch {epoch} with model {model}')
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     try:
-        test('configs/custom/ssd_base.py', model, f'tmp_{stream}/{out}.pkl', f'{stream}_test_{epoch}')
+        test('configs/custom/ssd_short.py', model, f'tmp_{stream}/{out}.pkl', f'{stream}_test_{epoch}')
     except Exception as err:
         print(err)
     print(f'test stream {stream} at epoch {epoch} with model {model} finished')
@@ -31,13 +31,14 @@ def parallel_train(stream, retrain, epoch, gpu, postfix):
     print(f'train stream {stream} at epoch {epoch} with retrain {retrain}')
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     try:
-        train('configs/custom/ssd_base.py', f'tmp_{stream}/{retrain}', f'{stream}_{choice_to_distill(retrain):03d}-{postfix}_train_{epoch}', None, f'tmp_{stream}/latest.pth')
+        # train('configs/custom/ssd_base.py', f'tmp_{stream}/{retrain}', f'{stream}_{choice_to_distill(retrain):03d}-{postfix}_train_{epoch}', None,  None, f'tmp_{stream}/latest.pth')
+        train('configs/custom/ssd_short.py', f'tmp_{stream}/{retrain}', f'{stream}_{choice_to_distill(retrain):03d}_train_{epoch}', None,  None, f'tmp_{stream}/latest.pth')
     except Exception as err:
         print(err)
     print(f'train stream {stream} at epoch {epoch} with retrain {retrain} finished')
 
 
-def fake_distill(average_tpt, n_epoch, n_config, postfix):
+def simulate_distill(average_tpt, n_epoch, n_config, postfix):
     with open('datasets.json') as f:
         datasets = json.load(f)
     n_stream, streams = len(datasets), []
@@ -50,7 +51,6 @@ def fake_distill(average_tpt, n_epoch, n_config, postfix):
     choices[0, :] = average_tpt
 
     mmap_observation_epoch = np.zeros((n_config, n_stream), dtype=np.double)
-
     for epoch in range(n_epoch):
         # decide distillation choice for next epoch
         print('decide distillation choice for next epoch')
@@ -121,6 +121,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fake distill')
     parser.add_argument('--throughput', '-t', type=int, default=3, help='average uplink throughput for each stream')
     args = parser.parse_args()
-    result = fake_distill(args.throughput, 20, 6, '500')
+    result = simulate_distill(args.throughput, 12, 6, None)
     with open('out.pkl', 'wb') as f:
         pickle.dump(result, f)

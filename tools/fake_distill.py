@@ -10,7 +10,6 @@ from mmcv import Config
 from mmdet.datasets import build_dataset
 from multiprocessing import Pool
 
-
 results = None
 
 
@@ -51,7 +50,7 @@ def allocate(bottleneck, profit_matrix):
     return choice
 
 
-def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
+def fake_distill(throughput, optimal, use_dp, n_stream, postfix, classwise, **_):
     with open('datasets.json') as f:
         datasets = json.load(f)
     with open(f'configs/cache/map_distill_golden_{postfix}.pkl', 'rb') as f:
@@ -64,7 +63,12 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
 
     if not optimal:
         with open(f'configs/cache/map_distill_class_val_{postfix}.pkl', 'rb') as f:
-            mmap_distill_class = pickle.load(f)
+            mmap_distill_class = pickle.load(f)[:, :n_stream, :]
+            # mmap_distill_class = np.concatenate((np.zeros((n_config, n_stream, 1)), mmap_distill_class[:, :, : -1]), axis=2)
+        with open(f'configs/cache/map_distill_val_{postfix}.pkl', 'rb') as f:
+            mmap_distill = pickle.load(f)[:, :n_stream, :]
+            # mmap_distill = np.concatenate((np.zeros((n_config, n_stream, 1)), mmap_distill_class[:, :, : -1]), axis=2)
+
     streams = []
     for i, stream in enumerate(datasets):
         if i >= n_stream:
@@ -74,15 +78,15 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
         print("Mismatch between dataset configuration file and dump file!")
         sys.exit(1)
 
-    bottleneck = average_tpt * n_stream
-    baseline_map, baseline_map_class = mmap_total[average_tpt], mmap_total_class[average_tpt]
+    bottleneck = throughput * n_stream
+    baseline_map, baseline_map_class = mmap_total[throughput], mmap_total_class[throughput]
     aca_map, aca_map_class = np.zeros(baseline_map.shape), np.zeros(baseline_map.shape)
     global results
     results = [[] for _ in range(n_stream)]
 
     # Since epoch 0 have no distillation yet, start with even allocation
     choices = np.zeros((n_epoch, n_stream), dtype=np.int64)
-    choices[0, :] = average_tpt
+    choices[0, :] = throughput
 
     for epoch in range(n_epoch):
         # print(f'Simulating epoch {epoch} ...')
@@ -98,15 +102,15 @@ def fake_distill(average_tpt, optimal, use_dp, n_stream, postfix):
         # decide distillation choice for next epoch
         if epoch + 1 < n_epoch:
             if epoch == 0 and not optimal:
-                choices[epoch + 1, :] = average_tpt
+                choices[epoch + 1, :] = throughput
             else:
-                mmap_observation_epoch = mmap_distill_class[:, :, epoch + 1]
+                mmap_observation_epoch = mmap_distill_class[:, :, epoch + 1] if classwise else mmap_distill[:, :, epoch + 1]
                 # start DP
                 if optimal or use_dp:
                     current_choice = allocate(bottleneck, mmap_observation_epoch)
                 else:
                     current_choice = copy.deepcopy(choices[epoch, :])
-                    current_choice[:] = average_tpt
+                    current_choice[:] = throughput
                     for i in range(n_stream):
                         for j in range(n_stream):
                             if i == j:
@@ -147,10 +151,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fake distill')
     parser.add_argument('--throughput', '-t', type=int, default=3, help='average uplink throughput for each stream')
     parser.add_argument('--optimal', '-o', type=ast.literal_eval, default=True, help='use optimal knowledge')
-    parser.add_argument('--use-dp', '-d', type=ast.literal_eval, default=False, help='use DP')
-    parser.add_argument('--stream', '-n', type=int, default=4, help='number of streams')
+    parser.add_argument('--use-dp', '-d', type=ast.literal_eval, default=True, help='use DP')
+    parser.add_argument('--n-stream', '-n', type=int, default=4, help='number of streams')
     parser.add_argument('--postfix', '-p', type=str, default="short", help='dataset postfix')
+    parser.add_argument('--classwise', '-c', type=ast.literal_eval, default=True, help='single class detection')
     args = parser.parse_args()
-    baseline_map, baseline_map_class, aca_map, aca_map_class = fake_distill(args.throughput, args.optimal, args.use_dp, args.stream, args.postfix)
-    print(f'baseline: {sum(baseline_map) / args.stream:.3f} classwise: {sum(baseline_map_class) / args.stream:.3f}')
-    print(f'aca: {sum(aca_map) / args.stream:.3f} classwise: {sum(aca_map_class) / args.stream:.3f}')
+    baseline_map, baseline_map_class, aca_map, aca_map_class = fake_distill(**args.__dict__)
+    print(f'baseline: {sum(baseline_map) / args.n_stream:.3f} classwise: {sum(baseline_map_class) / args.n_stream:.3f}')
+    print(f'aca: {sum(aca_map) / args.n_stream:.3f} classwise: {sum(aca_map_class) / args.n_stream:.3f}')

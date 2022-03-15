@@ -98,7 +98,7 @@ def train(config, work_dir, train_dataset=None, val_dataset=None, test_dataset=N
         cfg.data.train.ann_file = f'data/annotations/{train_dataset}.golden.json'
         cfg.data.train.img_prefix = ''
     if val_dataset is not None:
-        cfg.data.val.ann_file = f'data/annotations/{val_dataset}.gt.json'
+        cfg.data.val.ann_file = f'data/annotations/{val_dataset}.golden.json'
         cfg.data.val.img_prefix = ''
     else:
         no_validate = True

@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser(description='Merge traces')
 parser.add_argument('--output', '-o', type=str, required=True, help='Output trace name')
 parser.add_argument('--input', '-i', type=str, required=True, help='Input traces file')
 parser.add_argument('--gt', '-g', type=ast.literal_eval, default=True, help='Generate groundtruth file')
+parser.add_argument('--annotation-only', '-a', type=ast.literal_eval, default=False, help='Only generate annotation file for merged dataset')
 
 args = parser.parse_args()
 
@@ -28,7 +29,7 @@ for line in f:
     datasets.append(line[:-1])
 f.close()
 
-annotation_only = False
+annotation_only = args.annotation_only
 
 if not annotation_only:
     os.makedirs(f'data/{args.output}', exist_ok=True)

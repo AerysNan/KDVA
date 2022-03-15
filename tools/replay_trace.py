@@ -41,10 +41,10 @@ def replay_trace(path, name, framerate, batch_size):
                 result[k] = result[positions[j]]
         for k in range(positions[-1] + 1, len(result)):
             result[k] = result[positions[-1]]
-        mAP.append(evaluate_from_file(result, f'data/annotations/{name}_test_{i}.gt.json'))
+        # mAP.append(evaluate_from_file(result, f'data/annotations/{key}_test_{i}.golden.json'))
         results.extend(result)
 
-    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.gt.json'))
+    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.golden.json'))
     return mAP
 
 

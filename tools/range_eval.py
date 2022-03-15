@@ -2,6 +2,7 @@
 
 import ast
 import json
+import math
 import argparse
 from evaluate_from_file import evaluate_from_file
 
@@ -36,8 +37,8 @@ if __name__ == '__main__':
     if args.summary:
         path = f'_{args.postfix}' if args.postfix is not None else ''
         l.append(evaluate_from_file(f'snapshot/merge/{args.result}{path}.pkl', f'data/annotations/{key}.{"gt" if args.gt else "golden"}.json', args.config))
+    # classes_of_interest = ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck']
+    classes_of_interest = ['car']
     for v in l:
-        print(v['bbox_mAP'])
-    print('classwise')
-    for v in l:
-        print(v["bbox_mAP_car"])
+        mAPs_classwise = [v["classwise"][c] for c in classes_of_interest if not math.isnan(v["classwise"][c])]
+        print(f'mAP: {v["bbox_mAP"]} classwise: {sum(mAPs_classwise) / len(mAPs_classwise):.3f}')

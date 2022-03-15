@@ -18,12 +18,12 @@
 
 ## 生成训练用 golden label
 
-首先使用 `tools/test.py` 生成 inference 结果, 然后使用 `tools/result_to_annotation.py` 生成 golden label. 具体操作如下:
+首先使用 `tools/model_test.py` 生成 inference 结果, 然后使用 `tools/result_to_annotation.py` 生成 golden label. 具体操作如下:
 
 1. 将从 mmdetection 上下载的 pth 文件放在 `./checkpoints/` 文件夹中, 假设使用 `faster_rcnn_r101_fpn_1x_coco_20200130-f513f705.pth`, 同时将其对应的配置文件放在 `./configs/` 文件夹中, 假设名为 `faster_rcnn_r101_fpn_1x_coco.py`,则执行 inference `detrac_trace_1` 的命令为:
 
 ```
-python3 tools/test.py configs/faster_rcnn_r101_fpn_1x_coco.py checkpoints/faster_rcnn_r101_fpn_1x_coco_20200130-f513f705.pth -d detrac_trace_1 --out detrac_trace_1.golden.pkl
+python3 tools/model_test.py configs/faster_rcnn_r101_fpn_1x_coco.py checkpoints/faster_rcnn_r101_fpn_1x_coco_20200130-f513f705.pth -d detrac_trace_1 --out detrac_trace_1.golden.pkl
 ```
 
 其中 `-d` 指示输入 trace 名称, `--out` 指示输出的结果文件, 结果文件有固定的格式, 如果要使用 efficientdet 作为 golden model 的话需要格式转化
@@ -61,10 +61,10 @@ python3 tools/test.py configs/faster_rcnn_r101_fpn_1x_coco.py checkpoints/faster
 
 ## 训练
 
-使用 `tools/train.py` 来训练模型, 例如: 
+使用 `tools/model_train.py` 来训练模型, 例如: 
 
 ```
-python3 tools/train.py configs/custom/ssd_all.py --work-dir tmp_detrac_trace_1/ --train-dataset detrac_trace_1_020_train_0 --val-dataset detrac_trace_1_020_test_1
+python3 tools/model_train.py configs/custom/ssd_all.py --work-dir tmp_detrac_trace_1/ --train-dataset detrac_trace_1_020_train_0 --val-dataset detrac_trace_1_020_test_1
 ```
 
 表示使用 `./configs/custom/ssd_all.py` 配置文件做训练, 结果会在 `./tmp_detrac_trace_1/` 中, 训练数据集是 `detrac_trace_1_020_train_0`, 即之前以 `1/25` 采样率生成的 interval 0 的训练集, 同时观测在 `detrac_trace_1_020_test_1` 上的 loss 的变化, 如果不需要观测 loss 则设定 `--no-validate`

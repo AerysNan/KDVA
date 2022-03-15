@@ -22,7 +22,7 @@ parser.add_argument('--begin', '-b', type=int, default=0,
                     help='begin index')
 parser.add_argument('--end', '-e', type=int, default=float('inf'),
                     help='end index')
-parser.add_argument('--config', '-c', type=str, default='configs/custom/ssd.py',
+parser.add_argument('--config', '-c', type=str, default='configs/custom/ssd_base.py',
                     help='configuration path of the model')
 
 args = parser.parse_args()
@@ -32,8 +32,8 @@ files.sort()
 
 color = {
     2: (0, 0, 255),
-    5: (0, 255, 0),
-    7: (255, 0, 0)
+    # 5: (0, 255, 0),
+    # 7: (255, 0, 0)
 }
 
 os.makedirs(args.output, exist_ok=True)
@@ -45,7 +45,7 @@ if 'pkl' in args.result:
         gt = json.load(f)
     if "ignored_regions" in gt:
         print('Ignored regions detected, start filtering...')
-        filter_result(result, gt['ignored_regions'])
+        filter_result(result, gt['ignored_regions'], args.begin)
         print('Filtering finished!')
     for i in range(args.begin, args.end):
         print(i)

@@ -1,5 +1,6 @@
 import sys
 import json
+import math
 import pickle
 import argparse
 
@@ -79,4 +80,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     evaluation = evaluate_from_file(args.result, args.gt, args.config, args.threshold)
-    print(f'mAP: {evaluation["bbox_mAP"]} classwise: {evaluation["bbox_mAP_car"]}')
+    # classes_of_interest = ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck']
+    classes_of_interest = ['car']
+    mAPs_classwise = [evaluation["classwise"][c] for c in classes_of_interest if not math.isnan(evaluation["classwise"][c])]
+    print(f'mAP: {evaluation["bbox_mAP"]} classwise: {sum(mAPs_classwise) / len(mAPs_classwise) if len(mAPs_classwise) > 0 else -1:.3f}')

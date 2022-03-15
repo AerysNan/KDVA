@@ -20,7 +20,7 @@ def eval(path, name, framerate, batch_size):
 
 
 def choice_to_framerate(choice):
-    return (choice + 1) * 50
+    return (choice + 1) * 100
 
 
 def choice_to_distill(choice):
@@ -41,7 +41,7 @@ def allocate(bottleneck, profit_matrix):
                     choice_record[i, j] = k
     choice = np.zeros(n_stream, dtype=np.int64)
     remain = bottleneck
-    for i in reversed(range(n_stream)):
+    for i in range(n_stream, 0, -1):
         choice[i - 1] = choice_record[i, remain]
         remain -= choice_record[i, remain]
     return choice
@@ -50,9 +50,9 @@ def allocate(bottleneck, profit_matrix):
 def fake_replay(average_tpt, optimal, use_dp, size, dconfig, n_stream, postfix):
     with open('datasets.json') as f:
         datasets = json.load(f)
-    with open(f'configs/cache/map_filter_distill.pkl', 'rb') as f:
+    with open(f'configs/cache/map_all_golden_na.pkl', 'rb') as f:
         mmap = pickle.load(f)[dconfig, :, :n_stream, :]
-    with open(f'configs/cache/map_filter_distill_class.pkl', 'rb') as f:
+    with open(f'configs/cache/map_all_class_golden_na.pkl', 'rb') as f:
         mmap_class = pickle.load(f)[dconfig, :, :n_stream, :]
     mmap_total = mmap[:, :, -1]
     mmap_filter = mmap_class[:, :, :-1]
@@ -87,7 +87,7 @@ def fake_replay(average_tpt, optimal, use_dp, size, dconfig, n_stream, postfix):
                 mmap_observation_epoch = mmap_filter[:, :, epoch + 1]
             else:
                 mmap_observation_epoch = mmap_filter[:, :, epoch]
-            if use_dp:
+            if use_dp or optimal:
                 # start DP
                 current_choice = allocate(bottleneck, mmap_observation_epoch)
             else:
@@ -114,13 +114,16 @@ def fake_replay(average_tpt, optimal, use_dp, size, dconfig, n_stream, postfix):
 
     for stream in range(n_stream):
         name = streams[stream]
-        output.append(pool.apply_async(eval, (f'snapshot/result/{name}_{choice_to_distill(dconfig):03d}-{postfix}', name, choice_to_framerate(choices[:, stream]), size,)))
+        path = f'snapshot/result/{name}_{choice_to_distill(dconfig):03d}'
+        if dconfig > 0:
+            path += '_na'
+        output.append(pool.apply_async(eval, (path, name, choice_to_framerate(choices[:, stream]), size,)))
     pool.close()
     pool.join()
     for i in range(n_stream):
         result = output[i].get()
         aca_map_total[i] = result[-1]['bbox_mAP']
-        aca_map_classwise[i] = result[-1]['classwise'][2][1]
+        aca_map_classwise[i] = result[-1]['bbox_mAP_car']
     return baseline_map_total, baseline_map_class, aca_map_total, aca_map_classwise
 
 
@@ -128,20 +131,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fake replay')
     parser.add_argument('--throughput', '-t', type=int, default=3, help='average uplink throughput for each stream')
     parser.add_argument('--optimal', '-o', type=ast.literal_eval, default=True, help='use optimal knowledge')
-    parser.add_argument('--aggresive', '-a', type=ast.literal_eval, default=False, help='use DP')
+    parser.add_argument('--use-dp', '-a', type=ast.literal_eval, default=True, help='use DP')
     parser.add_argument('--distill', '-d', type=int, default=3, help='level of distillation')
     parser.add_argument('--stream', '-n', type=int, default=4, help='number of streams')
     parser.add_argument('--size', '-s', type=int, default=500, help='epoch size')
     parser.add_argument('--postfix', '-p', type=str, default="500_all_acc", help='postfix')
     args = parser.parse_args()
-    baseline_map_total, baseline_map_class, aca_map_total, aca_map_classwise = fake_replay(args.throughput, args.optimal, args.aggresive, args.size, args.distill, args.stream, args.postfix)
-    print('baseline')
-    print(f'{sum(baseline_map_total) / args.stream:.3f}')
-    print('baseclass')
-    print(f'{sum(baseline_map_class) / args.stream:.3f}')
-    print('aca')
-    print(f'{sum(aca_map_total) / args.stream:.3f}')
-    print('classwise')
-    print(f'{sum(aca_map_classwise) / args.stream:.3f}')
-    print(f'aca max: {max(aca_map_total- baseline_map_total)} min: {min(aca_map_total- baseline_map_total)}')
-    print(f'classwise max: {max(aca_map_classwise - baseline_map_class)} min: {min(aca_map_classwise - baseline_map_class)}')
+    baseline_map_total, baseline_map_class, aca_map_total, aca_map_classwise = fake_replay(args.throughput, args.optimal, args.use_dp, args.size, args.distill, args.stream, args.postfix)
+    print(f'baseline: {sum(baseline_map_total) / args.stream:.3f} classwise: {sum(baseline_map_class) / args.stream:.3f}')
+    print(f'aca: {sum(aca_map_total) / args.stream:.3f} classwise: {sum(aca_map_classwise) / args.stream:.3f}')

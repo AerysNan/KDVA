@@ -14,11 +14,8 @@ with open(args.path, 'rb') as f:
 
 with open(f'data/annotations/{args.dataset}.base.json') as f:
     data = json.load(f)
-with open(f'data/annotations/{args.dataset}.gt.json') as f:
-    gt = json.load(f)
 uid = 0
-# if 'ignored_regions' in gt:
-#     filter_result(results, gt['ignored_regions'])
+
 
 for i, frame_result in enumerate(results):
     for j, class_result in enumerate(frame_result):
