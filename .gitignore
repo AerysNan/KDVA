@@ -11,5 +11,6 @@ log/
 *.pb.go
 *pb2.py
 *pb2_grpc.py
+run*.sh
 
 datasets.json

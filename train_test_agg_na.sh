@@ -28,7 +28,7 @@ done
 for i in $(seq 1 1 $(expr ${SIZE} - 1))
 do
 
-  CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fh.py --work-dir tmp_agg_${PREFIX}_merge$4$5_${POSTFIX}/ --train-dataset merge$4$5_${POSTFIX}_train_$(expr ${i} - 1) --no-validate --load-from tmp_agg_${PREFIX}_merge$4$5_${POSTFIX}/latest.pth --seed 0 --deterministic
+  CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fh.py --work-dir tmp_agg_${PREFIX}_merge$4$5_${POSTFIX}/ --train-dataset merge$4$5_${POSTFIX}_train_$(expr ${i} - 1) --no-validate --seed 0 --deterministic
   for stream in $4 $5
   do
     cp tmp_agg_${PREFIX}_merge$4$5_${POSTFIX}/latest.pth tmp_agg_${PREFIX}_${stream}m$4$5_${POSTFIX}/latest.pth

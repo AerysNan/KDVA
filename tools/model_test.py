@@ -88,10 +88,7 @@ def test(config, checkpoint, out, dataset, work_dir=None, fuse_conv_bn=False, fo
 
     # overwrite test configuration
     if dataset is not None:
-        if format_only:
-            cfg.data.test.ann_file = f'data/annotations/{dataset}.base.json'
-        else:
-            cfg.data.test.ann_file = f'data/annotations/{dataset}.gt.json'
+        cfg.data.test.ann_file = f'data/annotations/{dataset}.golden.json'
         cfg.data.test.img_prefix = ''
     # build the dataloader
     dataset = build_dataset(cfg.data.test)
