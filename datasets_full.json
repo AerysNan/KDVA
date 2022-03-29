@@ -94,5 +94,53 @@
   "virat_12": {
     "name": "virat_12",
     "size": 9000
+  },
+  "down_1": {
+    "name": "down_1",
+    "size": 600
+  },
+  "down_2": {
+    "name": "down_2",
+    "size": 600
+  },
+  "down_3": {
+    "name": "down_3",
+    "size": 600
+  },
+  "down_4": {
+    "name": "down_4",
+    "size": 600
+  },
+  "down_5": {
+    "name": "down_5",
+    "size": 600
+  },
+  "down_6": {
+    "name": "down_6",
+    "size": 600
+  },
+  "down_7": {
+    "name": "down_7",
+    "size": 600
+  },
+  "down_8": {
+    "name": "down_8",
+    "size": 600
+  },
+  "down_9": {
+    "name": "down_9",
+    "size": 600
+  },
+  "down_10": {
+    "name": "down_10",
+    "size": 600
+  },
+  "down_11": {
+    "name": "down_11",
+    "size": 600
+  },
+  "down_12": {
+    "name": "down_12",
+    "size": 600
   }
 }

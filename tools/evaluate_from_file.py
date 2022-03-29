@@ -6,6 +6,7 @@ import argparse
 
 from mmcv import Config
 from mmdet.datasets import build_dataset
+from split_dataset import generate_sample_position
 
 
 def intersect(rec1, rec2):
@@ -39,7 +40,7 @@ def filter_result(result, ignored_regions, start, threshold=0.5):
                 result[i][j] = class_result[indices]
 
 
-def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd_base.py', threshold=0.5):
+def evaluate_from_file(result_path, gt_path, downsample=None, config='configs/custom/ssd_base.py', threshold=0.5):
     cfg = Config.fromfile(config)
     cfg.data.test.ann_file = gt_path
     cfg.data.test.img_prefix = ""
@@ -61,25 +62,29 @@ def evaluate_from_file(result_path, gt_path, config='configs/custom/ssd_base.py'
         start = min([image['id'] for image in gt['images']])
         filter_result(result, gt['ignored_regions'], start, threshold)
         print('Filtering finished!')
+    if downsample:
+        positions = generate_sample_position(downsample[0], downsample[1])
+        for start in range(0, len(result), downsample[1]):
+            for j in range(len(positions) - 1):
+                for k in range(positions[j] + 1, positions[j + 1]):
+                    result[start + k] = result[start + positions[j]]
+            for k in range(positions[-1] + 1, downsample[1]):
+                result[start + k] = result[start + positions[-1]]
     return dataset.evaluate(result, metric="bbox", classwise=True)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MMDet evaluate from pickle file")
-    parser.add_argument(
-        "--config", "-c", help="test config file path", default="configs/custom/ssd_base.py"
-    )
-    parser.add_argument(
-        "--result", "-r", help="result file path", type=str, required=True
-    )
-    parser.add_argument(
-        "--gt", "-g", help="ground truth file path", type=str, required=True
-    )
-    parser.add_argument(
-        "--threshold", "-t", help="iou threshold", type=float, default=0.5
-    )
+    parser.add_argument("--config", "-c", help="test config file path", default="configs/custom/ssd_base.py")
+    parser.add_argument("--result", "-r", help="result file path", type=str, required=True)
+    parser.add_argument("--gt", "-g", help="ground truth file path", type=str, required=True)
+    parser.add_argument("--threshold", "-t", help="iou threshold", type=float, default=0.5)
+    parser.add_argument("--downsample", "-d", help="downsample rate", type=str, default=None)
     args = parser.parse_args()
-    evaluation = evaluate_from_file(args.result, args.gt, args.config, args.threshold)
+    if args.downsample is not None:
+        downsample = args.downsample.split('/')
+        args.downsample = (int(downsample[0]), int(downsample[1]))
+    evaluation = evaluate_from_file(args.result, args.gt, args.downsample, args.config, args.threshold)
     # classes_of_interest = ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck']
     classes_of_interest = ['car']
     mAPs_classwise = [evaluation["classwise"][c] for c in classes_of_interest if not math.isnan(evaluation["classwise"][c])]

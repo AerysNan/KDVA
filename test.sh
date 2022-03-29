@@ -1,5 +1,14 @@
-stream=$1
+PREFIX=$1
+SIZE=$2
+DEVICE=$3
+CONFIG=$4
 
-cp snapshot/gt/detrac_trace_${stream}_m.pkl snapshot/merge/detrac_trace_${stream}_000-500_all_acc.pkl
-python3 tools/expand_result.py -r snapshot/gt/detrac_trace_${stream}_m.pkl -d snapshot/result/detrac_trace_${stream}_000-500_all_acc
-python3 tools/range_eval.py -r detrac_trace_${stream}_000-500_all_acc -d detrac_trace_${stream}_020-500 -s True -n 20
+echo processing dataset ${PREFIX}_0 with size ${SIZE}
+
+rm -rf snapshot/result/${PREFIX}_0
+mkdir -p snapshot/result/${PREFIX}_0
+
+for i in $(seq 0 1 $(expr ${SIZE} - 1))
+do
+  CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_test.py configs/custom/ssd_${CONFIG}.py checkpoints/ssd.pth --out snapshot/result/${PREFIX}_0/$(printf %02d ${i}).pkl -d ${PREFIX}_test_${i}
+done
