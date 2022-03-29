@@ -11,7 +11,7 @@ def range_evaluation(result, dataset, count, postfix, config, gt):
     l = []
     for i in range(count):
         path = f'/{postfix}' if postfix is not None else ''
-        l.append(evaluate_from_file(f'snapshot/result/{result}{path}/{i:02d}.pkl', f'data/annotations/{dataset}_test_{i}.{"gt" if gt else "golden"}.json', config))
+        l.append(evaluate_from_file(f'snapshot/result/{result}{path}/{i:02d}.pkl', f'data/annotations/{dataset}_test_{i}.{"gt" if gt else "golden"}.json', None, config))
     return l
 
 

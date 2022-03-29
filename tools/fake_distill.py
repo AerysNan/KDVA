@@ -1,31 +1,31 @@
 import ast
 import sys
 import json
+import math
 import copy
 import numpy as np
 import pickle
 import argparse
 
-from mmcv import Config
-from mmdet.datasets import build_dataset
+from evaluate_from_file import evaluate_from_file
 from multiprocessing import Pool
 
 results = None
 
 
 def choice_to_distill(choice):
-    return f'{choice * 20:03d}'
+    return f'{choice}'
 
 
-def eval(cfg, stream):
+def choice_to_filter(choice):
+    return (choice + 1) * 5
+
+
+def eval(name, stream, downsample):
     global results
     # define evaluation function for multiprocessing
     print(f'Evaluting stream {stream} ...')
-    dataset = build_dataset(cfg.data.test)
-    d = {
-        'id': stream,
-        'mAP': dataset.evaluate(results[stream], metric='bbox', classwise=True),
-    }
+    d = evaluate_from_file(results[stream], f'data/annotations/{name}.golden.json', downsample)
     print(f'Evaluting stream {stream} finished!')
     return d
 
@@ -50,24 +50,22 @@ def allocate(bottleneck, profit_matrix):
     return choice
 
 
-def fake_distill(throughput, optimal, use_dp, n_stream, postfix, classwise, **_):
+def fake_distill(throughput, fconfig, optimal, use_dp, n_stream, postfix, classwise, **_):
     with open('datasets.json') as f:
         datasets = json.load(f)
-    with open(f'configs/cache/map_distill_golden_{postfix}.pkl', 'rb') as f:
-        mmap = pickle.load(f)[:, :n_stream, :]
-    with open(f'configs/cache/map_distill_class_golden_{postfix}.pkl', 'rb') as f:
-        mmap_class = pickle.load(f)[:, :n_stream, :]
-    mmap_total, mmap_total_class = mmap[:, :, -1], mmap_class[:, :, -1]
-    mmap_distill, mmap_distill_class = mmap[:, :, :-1], mmap_class[:, :, :-1]
+    with open(f'configs/cache/detrac_{postfix}.pkl', 'rb') as f:
+        mmap = pickle.load(f)
+    mmap_total, mmap_total_class = mmap['data'][:, fconfig, :n_stream, -1], mmap['classwise_data'][:, fconfig, :n_stream, -1]
+    mmap_distill, mmap_distill_class = mmap['data'][:, fconfig, :n_stream, :-1], mmap['classwise_data'][:, fconfig, :n_stream, :-1]
     n_config, n_stream, n_epoch = mmap_distill_class.shape
-
+    mmap_distill_gt, mmap_distill_class_gt = mmap_distill, mmap_distill_class
     if not optimal:
-        with open(f'configs/cache/map_distill_class_val_{postfix}.pkl', 'rb') as f:
-            mmap_distill_class = pickle.load(f)[:, :n_stream, :]
-            # mmap_distill_class = np.concatenate((np.zeros((n_config, n_stream, 1)), mmap_distill_class[:, :, : -1]), axis=2)
-        with open(f'configs/cache/map_distill_val_{postfix}.pkl', 'rb') as f:
-            mmap_distill = pickle.load(f)[:, :n_stream, :]
-            # mmap_distill = np.concatenate((np.zeros((n_config, n_stream, 1)), mmap_distill_class[:, :, : -1]), axis=2)
+        with open(f'configs/cache/detrac_{postfix}_val.pkl', 'rb') as f:
+            tmp = pickle.load(f)
+            mmap_distill = np.zeros(mmap_distill.shape, dtype=np.double)
+            mmap_distill_class = np.zeros(mmap_distill_class.shape, dtype=np.double)
+            mmap_distill[:, :, 2:] = tmp['data'][:, fconfig, :n_stream, 1: -1]
+            mmap_distill_class[:, :, 2:] = tmp['classwise_data'][:, fconfig, :n_stream, 1: -1]
 
     streams = []
     for i, stream in enumerate(datasets):
@@ -89,26 +87,39 @@ def fake_distill(throughput, optimal, use_dp, n_stream, postfix, classwise, **_)
     choices[0, :] = throughput
 
     for epoch in range(n_epoch):
-        # print(f'Simulating epoch {epoch} ...')
         # collect result based on previous choice
         for stream in range(n_stream):
             name = streams[stream]
             path = f'{name}_{choice_to_distill(choices[epoch, stream])}'
-            if '000' not in path:
+            if choices[epoch, stream] != 0:
                 path += f'_{postfix}'
             with open(f'snapshot/result/{path}/{epoch:02d}.pkl', 'rb') as f:
                 result = pickle.load(f)
             results[stream].extend(result)
         # decide distillation choice for next epoch
+        print(f'Simulating epoch {epoch + 1} ...')
         if epoch + 1 < n_epoch:
             if epoch == 0 and not optimal:
-                choices[epoch + 1, :] = throughput
+                current_choice = throughput
             else:
                 mmap_observation_epoch = mmap_distill_class[:, :, epoch + 1] if classwise else mmap_distill[:, :, epoch + 1]
                 # start DP
                 if optimal or use_dp:
                     current_choice = allocate(bottleneck, mmap_observation_epoch)
                 else:
+                    # current_choice = copy.deepcopy(choices[epoch, :])
+                    # s = list(range(n_stream))
+                    # while len(s) > 1:
+                    #     down_grad, up_grad = np.zeros(len(s), dtype=np.double), np.zeros(len(s), dtype=np.double)
+                    #     for i in range(len(s)):
+                    #         down_grad[i] = mmap_observation_epoch[current_choice[s[i]], i] - mmap_observation_epoch[current_choice[s[i]] -
+                    #                                                                                                 1, i] if current_choice[s[i]] > 0 else mmap_observation_epoch[current_choice[s[i]], i]
+                    #         up_grad[i] = down_grad[i] if current_choice[s[i]] < n_config - 1 else -1
+                    #     thief, victim = np.argmax(up_grad), np.argmin(down_grad)
+                    #     current_choice[s[thief]] += 1
+                    #     current_choice[s[victim]] -= 1
+                    #     s.remove(s[thief])
+
                     current_choice = copy.deepcopy(choices[epoch, :])
                     current_choice[:] = throughput
                     for i in range(n_stream):
@@ -124,26 +135,30 @@ def fake_distill(throughput, optimal, use_dp, n_stream, postfix, classwise, **_)
                                     break
                                 current_choice[i] += 1
                                 current_choice[j] -= 1
-                choices[epoch + 1, :] = current_choice
+            choices[epoch + 1, :] = current_choice
+            mmap_gt_epoch = mmap_distill_class_gt[:, :, epoch + 1] if classwise else mmap_distill_gt[:, :, epoch + 1]
+        print(f'Simulating epoch {epoch + 1} finished')
+        print(f'mAP gt: {mmap_gt_epoch[current_choice, np.arange(n_stream)].mean():.3f} even gt: {mmap_gt_epoch[throughput, :].mean():.3f}')
+        if epoch > 0 or optimal:
+            print(f'mAP ob: {mmap_observation_epoch[current_choice, np.arange(n_stream)].mean():.3f} even ob: {mmap_observation_epoch[throughput, :].mean():.3f}')
+
     print('Simulation ended, starting evaluation ...')
     print(choices)
-    pool, output = Pool(processes=4), []
+    pool, output = Pool(processes=6), {}
 
     for stream in range(n_stream):
         name = streams[stream]
-        cfg = Config.fromfile('configs/custom/ssd_base.py')
-        cfg.data.test.ann_file = f'data/annotations/{name}.golden.json'
-        cfg.data.test.img_prefix = ''
-        output.append(pool.apply_async(eval, (cfg, stream,)))
+        output[stream] = pool.apply_async(eval, (name, stream, (choice_to_filter(fconfig), 25),))
     pool.close()
     pool.join()
     for i in range(n_stream):
-        try:
-            result = output[i].get(600)
-            aca_map[result['id']] = result['mAP']['bbox_mAP']
-            aca_map_class[result['id']] = result['mAP']["bbox_mAP_car"]
-        except:
-            print('Timeout occurred!')
+        result = output[i].get(600)
+        if type(result) == tuple:
+            result = result[0]
+        aca_map[i] = result['bbox_mAP']
+        classes_of_interest = ['car']
+        mAPs_classwise = [result["classwise"][c] for c in classes_of_interest if not math.isnan(result["classwise"][c])]
+        aca_map_class[i] = sum(mAPs_classwise) / len(mAPs_classwise)
     return baseline_map, baseline_map_class, aca_map, aca_map_class
 
 
@@ -152,6 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--throughput', '-t', type=int, default=3, help='average uplink throughput for each stream')
     parser.add_argument('--optimal', '-o', type=ast.literal_eval, default=True, help='use optimal knowledge')
     parser.add_argument('--use-dp', '-d', type=ast.literal_eval, default=True, help='use DP')
+    parser.add_argument('--fconfig', '-f', type=int, default=4, help='inference configuration')
     parser.add_argument('--n-stream', '-n', type=int, default=4, help='number of streams')
     parser.add_argument('--postfix', '-p', type=str, default="short", help='dataset postfix')
     parser.add_argument('--classwise', '-c', type=ast.literal_eval, default=True, help='single class detection')
