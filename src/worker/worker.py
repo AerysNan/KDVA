@@ -5,7 +5,6 @@ import grpc
 import json
 import mmcv
 import cv2
-import os
 
 import rwlock
 import worker_pb2
@@ -33,9 +32,6 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
     def InitWorker(self, request, _):
         self.work_dir = request.work_dir
         logging.info(f'Set work directory to {request.work_dir}')
-        os.makedirs(f'{self.work_dir}/{FRAME_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{MODEL_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{RESULT_DIR}', exist_ok=True)
         return worker_pb2.InitWorkerResponse()
 
     def RemoveModel(self, request, _):
@@ -55,9 +51,10 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
 
     def InferFrame(self, request, _):
         global LOCK
-        frame = cv2.imread(self.get_frame_dir(request.source, request.index))
+        decoded = cv2.imread(self.get_frame_dir(request.source, request.index))
         LOCK.r_acquire()
-        results = inference_detector(self.model_dict[request.source], frame)
+        results = inference_detector(
+            self.model_dict[request.source], decoded)
         LOCK.r_release()
         with open(self.get_result_dir(request.source, request.index), 'w') as f:
             pickle.dump(results)

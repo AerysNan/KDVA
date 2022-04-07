@@ -1,10 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"net"
 	pe "vakd/proto/edge"
-	ps "vakd/proto/source"
 
 	"vakd/source"
 
@@ -14,12 +11,13 @@ import (
 )
 
 var (
-	port  = kingpin.Flag("port", "listen port of source server").Short('p').Default("8080").String()
-	dir   = kingpin.Flag("dir", "dataset name of source server").Short('d').Required().String()
-	edge  = kingpin.Flag("edge", "address of edge server").Short('e').Default("0.0.0.0:8084").String()
-	fps   = kingpin.Flag("fps", "initial framerate").Short('f').Default("60").Int()
-	eval  = kingpin.Flag("eval", "evalute result when finished").Short('v').Default("true").Bool()
-	debug = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
+	id      = kingpin.Flag("id", "source ID").Short('i').Required().Int()
+	dataset = kingpin.Flag("dataset", "dataset name of source server").Short('d').Required().String()
+	dir     = kingpin.Flag("dir", "dataset directory").Short('p').Default("data").String()
+	edge    = kingpin.Flag("edge", "address of edge server").Short('e').Default("0.0.0.0:8084").String()
+	fps     = kingpin.Flag("fps", "initial framerate").Short('f').Default("25").Int()
+	eval    = kingpin.Flag("eval", "evalute result when finished").Short('v').Default("true").Bool()
+	debug   = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
 
 func main() {
@@ -34,19 +32,11 @@ func main() {
 	}
 	defer edgeConnection.Close()
 	edgeClient := pe.NewEdgeForSourceClient(edgeConnection)
-	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
-	sourceServer, err := source.NewSource(*dir, listenAddress, *fps, *eval, edgeClient)
+	s, err := source.NewSource(*id, *dataset, *dir, *fps, *eval, edgeClient)
 	if err != nil {
 		logrus.WithError(err).Fatalf("Create source server failed")
 	}
-	listen, err := net.Listen("tcp", listenAddress)
-	if err != nil {
-		logrus.WithError(err).Fatalf("Listen to port %s failed", *port)
-	}
-	server := grpc.NewServer()
-	ps.RegisterSourceForEdgeServer(server, sourceServer)
-	logrus.Infof("Source server started on address %s", listenAddress)
-	if err = server.Serve(listen); err != nil {
-		logrus.WithError(err).Fatal("Source server failed")
-	}
+	logrus.Infof("Source started")
+	s.Start()
+	logrus.Infof("Source exited")
 }

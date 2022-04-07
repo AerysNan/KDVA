@@ -1,9 +1,6 @@
 package util
 
-import (
-	"math"
-	"sort"
-)
+import "fmt"
 
 func GCD(l []int) int {
 	if len(l) == 1 {
@@ -36,87 +33,49 @@ func Reduce(m map[int]int) int {
 	return gcd
 }
 
-type unit struct {
-	id      int
-	current int
-	target  float64
-}
-
-type units []unit
-
-func (u units) Len() int {
-	return len(u)
-}
-
-func (u units) Less(i, j int) bool {
-	return float64(u[i].current)-u[i].target < float64(u[j].current)-u[j].target
-}
-
-func (u units) Swap(i, j int) {
-	u[i], u[j] = u[j], u[i]
-}
-
-func Allocate(target map[int]float64, current map[int]int) {
-	l := make(units, 0)
-	if len(current) == 1 {
-		return
-	}
-	for id := range target {
-		l = append(l, unit{
-			id:      id,
-			current: current[id],
-			target:  target[id],
-		})
-	}
-	sort.Sort(l)
-	for {
-		victim := len(l) - 1
-		for victim > 0 && l[victim].current == 1 {
-			victim--
+func GenerateSamplePosition(sampleCount int, sampleInterval int, offset int) []int {
+	sampleWindow, count := make([]int, sampleCount), 0
+	for count < sampleInterval {
+		for i := 0; i < sampleCount; i++ {
+			sampleWindow[i]++
+			count++
+			if count == sampleInterval {
+				break
+			}
 		}
-		if victim <= 0 {
-			return
-		}
-		p1 := math.Abs(float64(l[0].current)-l[0].target) + math.Abs(float64(l[victim].current)-l[victim].target)
-		p2 := math.Abs(float64(l[0].current+1)-l[0].target) + math.Abs(float64(l[victim].current-1)-l[victim].target)
-		if p1 <= p2 {
-			return
-		}
-		l[0].current++
-		l[victim].current--
-		current[l[0].id]++
-		current[l[victim].id]--
-		sort.Sort(l)
 	}
+	samplePosition := []int{offset}
+	for i := 0; i < sampleCount-1; i++ {
+		samplePosition = append(samplePosition, samplePosition[len(samplePosition)-1]+sampleWindow[i])
+	}
+	return samplePosition
 }
 
-func Steal(target map[int]float64, current map[int]int) {
-	l := make(units, 0)
-	if len(current) == 1 {
-		return
+func Exist(l []int, target int) bool {
+	for i := 0; i < len(l); i++ {
+		if l[i] == target {
+			return true
+		}
 	}
-	for id := range target {
-		l = append(l, unit{
-			id:      id,
-			current: current[id],
-			target:  target[id],
-		})
-	}
-	sort.Sort(l)
-	victim := len(l) - 1
-	for victim > 0 && l[victim].current == 1 {
-		victim--
-	}
-	if victim <= 0 {
-		return
-	}
-	p1 := math.Abs(float64(l[0].current)-l[0].target) + math.Abs(float64(l[victim].current)-l[victim].target)
-	p2 := math.Abs(float64(l[0].current+1)-l[0].target) + math.Abs(float64(l[victim].current-1)-l[victim].target)
-	if p1 <= p2 {
-		return
-	}
-	l[0].current++
-	l[victim].current--
-	current[l[0].id]++
-	current[l[victim].id]--
+	return false
+}
+
+func SourceGetFrameName(index int) string {
+	return fmt.Sprintf("%06d.jpg", index)
+}
+
+func EdgeGetFrameName(source int, index int) string {
+	return fmt.Sprintf("%d-%06d.jpg", source, index)
+}
+
+func EdgeGetModelName(source int, version int) string {
+	return fmt.Sprintf("%d-%d.pth", source, version)
+}
+
+func CloudGetFrameName(edge int, source int, index int) string {
+	return fmt.Sprintf("%d-%d-%06d.jpg", edge, source, index)
+}
+
+func CloudGetModelName(edge int, source int, version int) string {
+	return fmt.Sprintf("%d-%d-%d.pth", edge, source, version)
 }

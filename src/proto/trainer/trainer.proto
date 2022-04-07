@@ -2,16 +2,41 @@ syntax = "proto3";
 option go_package = "./;pt";
 
 service TrainerForCloud {
+  rpc InitTrainer (InitTrainerRequest) returns (InitTrainerResponse) {}
   rpc SendFrame (CloudSendFrameRequest) returns (CloudSendFrameResponse) {}
+  rpc TriggerRetrain (TriggerRetrainRequest) returns(TriggerRetrainResponse) {}
 }
+
+message InitTrainerRequest {
+  string work_dir = 1;
+}
+
+message InitTrainerResponse {}
 
 message CloudSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 index = 3;
-  string dataset = 4;
-  bytes content = 5;
-  bytes annotation = 6;
 }
 
 message CloudSendFrameResponse {}
+
+message TriggerRetrainRequest {
+  int64 edge = 1;
+  int64 source = 2;
+  int64 version = 3;
+}
+
+message TriggerRetrainResponse {
+  RetProfile ret_profile = 1;
+  bool updated = 2;
+}
+
+message RetProfile {
+  repeated InfProfile inf_profiles = 1;
+}
+
+message InfProfile {
+  repeated double accuracies = 1;
+}
+

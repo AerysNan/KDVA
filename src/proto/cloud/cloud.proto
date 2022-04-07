@@ -3,56 +3,45 @@ option go_package = "./;pc";
 
 service CloudForEdge{
   rpc AddEdge (AddEdgeRequest) returns (AddEdgeResponse) {}
-  rpc SendFrame (EdgeSendFrameRequest) returns (EdgeSendFrameResponse) {}
+  rpc AddSource (CloudAddSourceRequest) returns (CloudAddSourceResponse) {}
   rpc RemoveEdge (RemoveEdgeRequest) returns (RemoveEdgeResponse) {}
+  rpc RemoveSource(CloudRemoveSourceRequest) returns (CloudRemoveSourceResponse) {}
+  rpc SendFrame (EdgeSendFrameRequest) returns (EdgeSendFrameResponse) {}
 }
 
 message AddEdgeRequest {
   string address = 1;
+  int64 edge = 2;
+  repeated int64 sources = 3;
 }
 
-message AddEdgeResponse {
-  int64 id = 1;
+message AddEdgeResponse {}
+
+message CloudAddSourceRequest {
+  int64 edge = 1;
+  int64 source = 2;
 }
+
+message CloudAddSourceResponse {}
+
+message CloudRemoveSourceRequest {
+  int64 edge = 1;
+  int64 source = 2;
+}
+
+message CloudRemoveSourceResponse {}
 
 message EdgeSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
   int64 index = 3;
-  string dataset = 4;
-  bytes content = 5;
-  bytes annotation = 6;
+  bytes content = 4;
 }
 
 message EdgeSendFrameResponse {}
 
 message RemoveEdgeRequest {
-  int64 id = 1;
+  int64 edge = 1;
 }
 
 message RemoveEdgeResponse {}
-
-service CloudForTrainer {
-  rpc UpdateModel (TrainerUpdateModelRequest) returns (TrainerUpdateModelResponse) {}
-  rpc ReportProfile (TrainerReportProfileRequest) returns (TrainerReportProfileResponse) {}
-}
-
-message TrainerUpdateModelRequest {
-  int64 edge = 1;
-  int64 source = 2;
-  int64 epoch = 3;
-  bytes model = 4;
-}
-
-message TrainerUpdateModelResponse {}
-
-message TrainerReportProfileRequest {
-  int64 edge = 1;
-  int64 source = 2;
-  int64 begin = 3;
-  int64 end = 4;
-  double accuracy = 5;
-  double downsample = 6;
-}
-
-message TrainerReportProfileResponse {}

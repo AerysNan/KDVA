@@ -2,19 +2,18 @@ syntax = "proto3";
 option go_package = "./;pe";
 
 service EdgeForSource {
-  rpc AddSource (AddSourceRequest) returns (AddSourceResponse) {}
+  rpc AddSource (EdgeAddSourceRequest) returns (EdgeAddSourceResponse) {}
   rpc SendFrame (SourceSendFrameRequest) returns (SourceSendFrameResponse) {}
   rpc RemoveSource(RemoveSourceRequest) returns(RemoveSourceResponse){}
 }
 
-message AddSourceRequest {
-  string address = 1;
+message EdgeAddSourceRequest {
+  int64 source = 1;
   int64 fps = 2;
   string dataset = 3;
 }
 
-message AddSourceResponse {
-  int64 id = 1;
+message EdgeAddSourceResponse {
   int64 edge = 2;
 }
 
@@ -27,30 +26,28 @@ message SourceSendFrameRequest {
 message SourceSendFrameResponse {}
 
 message RemoveSourceRequest {
-  int64 id = 1;
+  int64 source = 1;
 }
 
 message RemoveSourceResponse {}
 
 service EdgeForCloud {
   rpc UpdateModel (CloudUpdateModelRequest) returns (CloudUpdateModelResponse) {}
-  rpc ReportProfile (CloudReportProfileRequest) returns (CloudReportProfileResponse) {}
+  rpc UpdateConfig (CloudUpdateConfigRequest) returns (CloudUpdateConfigResponse) {}
 }
 
 message CloudUpdateModelRequest {
   int64 source = 1;
-  int64 epoch = 2;
+  int64 version = 2;
   bytes model = 3;
 }
 
 message CloudUpdateModelResponse {}
 
-message CloudReportProfileRequest {
+message CloudUpdateConfigRequest {
   int64 source = 1;
-  int64 begin = 2;
-  int64 end = 3;
-  double accuracy = 4;
-  double downsample = 5;
+  int64 inf_fps = 2;
+  int64 ret_fps = 3;
 }
 
-message CloudReportProfileResponse {}
+message CloudUpdateConfigResponse {}
