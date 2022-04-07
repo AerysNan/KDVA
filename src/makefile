@@ -7,9 +7,8 @@ gen:
 		protoc --go_out=proto/$$proto --go-grpc_out=proto/$$proto proto/$$proto/$$proto.proto ; \
 	done
 	for proto in $(PY_PROTOS) ; do \
-		python3 -m grpc_tools.protoc -Iproto/$$proto --python_out=cmd/$$proto --grpc_python_out=cmd/$$proto proto/$$proto/$$proto.proto ; \
+		python3 -m grpc_tools.protoc -I proto/$$proto --python_out=$$proto --grpc_python_out=$$proto proto/$$proto/$$proto.proto ; \
 	done
-	mv cmd/cloud/*.py cmd/trainer
 build:
 	for bin in $(BINS) ; do \
 		go build -o ../bin/$$bin cmd/$$bin/main.go ; \

@@ -2,33 +2,31 @@ syntax = "proto3";
 option go_package = "./;pw";
 
 service WorkerForEdge {
+  rpc InitWorker (InitWorkerRequest) returns (InitWorkerResponse) {}
   rpc InferFrame (InferFrameRequest) returns (InferFrameResponse) {}
-  rpc AddModel (AddModelRequest) returns (AddModelResponse) {}
   rpc RemoveModel (RemoveModelRequest) returns (RemoveModelResponse) {}
   rpc UpdateModel (EdgeUpdateModelRequest) returns (EdgeUpdateModelResponse) {}
 }
 
-message InferFrameRequest {
-  int64 source = 1;
-  bytes content = 2;
+message InitWorkerRequest {
+  string work_dir = 1;
 }
 
-message InferFrameResponse {
-  bytes result = 1;
+message InitWorkerResponse {}
+
+message InferFrameRequest {
+  int64 source = 1;
+  int64 index = 2;
 }
+
+message InferFrameResponse {}
 
 message EdgeUpdateModelRequest {
   int64 source = 1;
-  string path = 2;
+  int64 version = 2;
 }
 
 message EdgeUpdateModelResponse {}
-
-message AddModelRequest {
-  int64 source = 1;
-}
-
-message AddModelResponse {}
 
 message RemoveModelRequest {
   int64 source = 1;

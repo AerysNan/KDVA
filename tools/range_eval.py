@@ -21,9 +21,9 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', help='name of dataset', type=str, required=True)
     parser.add_argument('--config', '-c', help='config file path', type=str, default='configs/custom/ssd_base.py')
     parser.add_argument('--count', '-n', help='number of splitted ranges', type=int, default=15)
-    parser.add_argument('--summary', '-s', help='whether to evaluate the whole sequence', type=ast.literal_eval, default=False)
+    parser.add_argument('--summary', '-s', help='whether to evaluate the whole sequence', type=ast.literal_eval, default=True)
     parser.add_argument('--postfix', '-p', help='postfix', type=str, default=None)
-    parser.add_argument('--gt', '-g', help='use ground truth for evaluation', type=ast.literal_eval, default=True)
+    parser.add_argument('--gt', '-g', help='use ground truth for evaluation', type=ast.literal_eval, default=False)
     args = parser.parse_args()
 
     with open('datasets.json') as f:

@@ -14,7 +14,9 @@ import (
 )
 
 var (
+	id     = kingpin.Flag("id", "edge ID").Short('i').Required().Int()
 	port   = kingpin.Flag("port", "listen port of edge server").Short('p').Default("8084").String()
+	dir    = kingpin.Flag("dir", "work directory").Short('d').Required().String()
 	worker = kingpin.Flag("worker", "address of inference worker").Short('w').Default("0.0.0.0:8086").String()
 	cloud  = kingpin.Flag("cloud", "address of training cloud").Short('c').Default("0.0.0.0:8088").String()
 	debug  = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
@@ -28,24 +30,24 @@ func main() {
 	}
 	inferenceConnection, err := grpc.Dial(*worker, grpc.WithInsecure())
 	if err != nil {
-		logrus.WithError(err).Fatalf("Connect to infernce server %s failed", *worker)
+		logrus.WithError(err).Fatalf("Failed to connect to infernce server %s", *worker)
 	}
 	defer inferenceConnection.Close()
 	workerClient := pw.NewWorkerForEdgeClient(inferenceConnection)
 	cloudConnection, err := grpc.Dial(*cloud, grpc.WithInsecure())
 	if err != nil {
-		logrus.WithError(err).Fatalf("Connect to cloud server %s failed", *cloud)
+		logrus.WithError(err).Fatalf("Failed to connect to cloud server %s", *cloud)
 	}
 	defer cloudConnection.Close()
 	cloudClient := pc.NewCloudForEdgeClient(cloudConnection)
 	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
-	edgeServer, err := edge.NewEdge(listenAddress, workerClient, cloudClient)
+	edgeServer, err := edge.NewEdge(*id, listenAddress, *dir, workerClient, cloudClient)
 	if err != nil {
-		logrus.WithError(err).Fatalf("Create edge server failed")
+		logrus.WithError(err).Fatalf("Failed to create edge server")
 	}
 	listen, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		logrus.WithError(err).Fatalf("Listen to port %s failed", *port)
+		logrus.WithError(err).Fatalf("Failed to listen at port %s", *port)
 	}
 	server := grpc.NewServer(grpc.MaxRecvMsgSize(1<<30), grpc.MaxSendMsgSize(1<<30))
 	pe.RegisterEdgeForSourceServer(server, edgeServer)

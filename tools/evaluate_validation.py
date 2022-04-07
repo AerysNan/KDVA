@@ -6,7 +6,7 @@ import pickle
 import math
 
 
-def evaluate_validation(count, prefix, **_):
+def evaluate_validation(count, prefix, val, ** _):
     m, m_class = np.zeros((7, 5, 12, count), dtype=np.double), np.zeros((7, 5, 12, count), dtype=np.double)
     p, output = Pool(processes=10), {}
 
@@ -15,8 +15,8 @@ def evaluate_validation(count, prefix, **_):
             for stream in range(12):
                 for epoch in range(count - 1):
                     output[(retrain, f, stream, epoch)] = p.apply_async(evaluate_from_file, (
-                        f'snapshot/result/{prefix}_{stream + 1}_{retrain}_ve40/{epoch + 1:02d}.pkl',
-                        f'data/annotations/{prefix}_{stream + 1}_{retrain if retrain != 0 else 1}_val_{epoch}.golden.json', (f + 1, 5),))
+                        f'snapshot/result/{prefix}_{stream + 1}_{retrain}_{val}ve40/{epoch + 1:02d}.pkl',
+                        f'data/annotations/{prefix}_{stream + 1}_{val}_val_{epoch}.golden.json', (f + 1, 5),))
 
     p.close()
     p.join()
@@ -31,7 +31,7 @@ def evaluate_validation(count, prefix, **_):
                     mAPs_classwise = [result["classwise"][c] for c in classes_of_interest if not math.isnan(result["classwise"][c])]
                     m_class[retrain, f, stream, epoch + 1] = sum(mAPs_classwise) / len(mAPs_classwise)
 
-    with open(f'{prefix}_eval_val.pkl', 'wb') as f:
+    with open(f'{prefix}_{val}_val.pkl', 'wb') as f:
         pickle.dump({"data": m, "classwise_data": m_class}, f)
 
 
@@ -39,5 +39,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generate validation result")
     parser.add_argument("--count", "-n", help="epoch count", type=int, default=12)
     parser.add_argument("--prefix", "-p", help="dataset prefix", type=str, default="detrac")
+    parser.add_argument("--val", "-v", help="validation postfix", type=str, required=True)
     args = parser.parse_args()
     evaluate_validation(**args.__dict__)

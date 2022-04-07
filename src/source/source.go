@@ -10,48 +10,45 @@ import (
 	"sync"
 	"time"
 	pe "vakd/proto/edge"
-	ps "vakd/proto/source"
+	"vakd/util"
 
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	MONITOR_INTERVAL  = time.Millisecond * 1000
-	INITIAL_FRAMERATE = 3
-)
-
-type Source struct {
-	ps.SourceForEdgeServer
-	id           int
-	edge         int
-	currentIndex int
-	originalFPS  int
-	currentFPS   int
-	count        int
-	sent         int
-	eval         bool
-	active       bool
-	lastMonitor  time.Time
-	dataset      string
-	address      string
-	client       pe.EdgeForSourceClient
-	m            sync.RWMutex
+type Record struct {
+	sentAcc     int
+	lastSentAcc int
 }
 
-func NewSource(dataset string, address string, fps int, eval bool, client pe.EdgeForSourceClient) (*Source, error) {
+type Source struct {
+	id          int
+	fps         int
+	edge        int
+	count       int
+	eval        bool
+	dataDir     string
+	dataset     string
+	record      Record
+	lastMonitor time.Time
+	client      pe.EdgeForSourceClient
+	m           sync.RWMutex
+}
+
+func NewSource(id int, dataset string, dataDir string, fps int, eval bool, client pe.EdgeForSourceClient) (*Source, error) {
 	source := &Source{
-		m:            sync.RWMutex{},
-		currentIndex: 0,
-		sent:         0,
-		eval:         eval,
-		active:       true,
-		originalFPS:  fps,
-		currentFPS:   INITIAL_FRAMERATE,
-		dataset:      dataset,
-		address:      address,
-		client:       client,
+		m:  sync.RWMutex{},
+		id: id,
+		record: Record{
+			sentAcc:     0,
+			lastSentAcc: 0,
+		},
+		eval:    eval,
+		fps:     fps,
+		dataDir: dataDir,
+		dataset: dataset,
+		client:  client,
 	}
-	files, err := ioutil.ReadDir(fmt.Sprintf("data/%s", dataset))
+	files, err := ioutil.ReadDir(fmt.Sprintf("%s/%s", dataDir, dataset))
 	if err != nil {
 		return nil, err
 	}
@@ -61,34 +58,34 @@ func NewSource(dataset string, address string, fps int, eval bool, client pe.Edg
 			source.count++
 		}
 	}
-	response, err := client.AddSource(context.Background(), &pe.AddSourceRequest{
-		Address: address,
-		Fps:     int64(INITIAL_FRAMERATE),
+	response, err := client.AddSource(context.Background(), &pe.EdgeAddSourceRequest{
+		Source:  int64(id),
+		Fps:     int64(fps),
 		Dataset: source.dataset,
 	})
 	if err != nil {
 		return nil, err
 	}
-	source.id = int(response.Id)
-	logrus.Infof("Assign ID S%d", source.id)
+	logrus.Infof("Assign source ID %d", source.id)
 	source.edge = int(response.Edge)
 	source.lastMonitor = time.Now()
-	go source.sendFrameLoop()
-	go source.monitorLoop()
+
 	return source, nil
 }
 
+func (s *Source) Start() {
+	go s.monitorLoop()
+	s.sendFrameLoop()
+}
+
 func (s *Source) monitorLoop() {
-	timer := time.NewTicker(MONITOR_INTERVAL)
+	timer := time.NewTicker(util.MONITOR_INTERVAL)
 	for {
-		if !s.active {
-			return
-		}
-		fps := float64(s.sent) / time.Since(s.lastMonitor).Seconds()
-		logrus.Infof("I: %d; F: %d; A: %.3f", s.currentIndex, s.currentFPS, fps)
+		fps := float64(s.record.sentAcc-s.record.lastSentAcc) / time.Since(s.lastMonitor).Seconds()
+		logrus.Infof("Sent %d frames %.3f FPS", s.record.sentAcc, fps)
 		s.lastMonitor = time.Now()
 		s.m.Lock()
-		s.sent = 0
+		s.record.lastSentAcc = s.record.sentAcc
 		s.m.Unlock()
 		<-timer.C
 	}
@@ -96,80 +93,52 @@ func (s *Source) monitorLoop() {
 
 func (s *Source) sendFrameLoop() {
 	s.m.RLock()
-	duration := time.Second / time.Duration(s.currentFPS)
+	duration := time.Second / time.Duration(s.fps)
 	s.m.RUnlock()
 	timer := time.NewTimer(duration)
 	for {
-		s.m.RLock()
-		currentFPS := s.currentFPS
-		s.m.RUnlock()
-		strideList := make([]int, currentFPS)
-		remainder := s.originalFPS
-		for i := 0; i < currentFPS; i++ {
-			strideList[i] = s.originalFPS / currentFPS
-			remainder -= strideList[i]
-		}
-		for i, index := 0, 0; i < remainder; i++ {
-			strideList[index]++
-			index += currentFPS / remainder
-		}
-		duration = time.Second / time.Duration(currentFPS)
-		for i := 0; i < currentFPS; i++ {
-			<-timer.C
-			timer.Reset(duration)
-			s.sendFrame(s.currentIndex)
-			s.currentIndex += strideList[i]
-			if s.currentIndex >= s.count {
-				logrus.Warnf("Stream %d exited since all frames are sent to edge", s.id)
-				if _, err := s.client.RemoveSource(context.Background(), &pe.RemoveSourceRequest{
-					Id: int64(s.id),
-				}); err != nil {
-					logrus.WithError(err).Error("Failed to disconnect from edge")
-				}
-				s.active = false
-				if s.eval {
-					output, err := exec.Command("tools/range_eval.py", "-i", fmt.Sprintf("%v_%v", s.edge, s.id), "-d", s.dataset, "-n", "36").Output()
-					if err != nil {
-						logrus.WithError(err).Error("Execute evaluation failed")
-					} else {
-						logrus.Infof("Evaluation result:\n%s", output)
-					}
-				}
-				os.Exit(0)
+		<-timer.C
+		timer.Reset(duration)
+		s.sendFrame(s.record.sentAcc)
+		s.record.sentAcc++
+		if s.record.sentAcc >= s.count {
+			logrus.Warnf("Source %d finished", s.id)
+			if _, err := s.client.RemoveSource(context.Background(), &pe.RemoveSourceRequest{
+				Source: int64(s.id),
+			}); err != nil {
+				logrus.WithError(err).Error("Failed to disconnect from edge")
 			}
+			if s.eval {
+				output, err := exec.Command("tools/range_eval.py", "-r", fmt.Sprintf("%v_%v", s.edge, s.id), "-d", s.dataset, "-n", "12").Output()
+				if err != nil {
+					logrus.WithError(err).Error("Failed to execute evaluation")
+				} else {
+					logrus.Infof("Evaluation result:\n%s", output)
+				}
+			}
+			break
 		}
 	}
 }
 
-func (s *Source) sendFrame(current int) {
-	file, err := os.Open(fmt.Sprintf("data/%s/%06d.jpg", s.dataset, current))
+func (s *Source) sendFrame(index int) {
+	file, err := os.Open(fmt.Sprintf("%s/%s/%s", s.dataDir, s.dataset, util.SourceGetFrameName(index)))
 	if err != nil {
-		logrus.WithError(err).Errorf("Open frame %d failed", current)
+		logrus.WithError(err).Errorf("Failed to open frame %d", index)
 		return
 	}
 	defer file.Close()
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		logrus.WithError(err).Errorf("Read frame %d failed", current)
+		logrus.WithError(err).Errorf("Failed to read frame %d", index)
 		return
 	}
 	_, err = s.client.SendFrame(context.Background(), &pe.SourceSendFrameRequest{
 		Source:  int64(s.id),
-		Index:   int64(current),
+		Index:   int64(index),
 		Content: content,
 	})
 	if err != nil {
-		logrus.WithError(err).Errorf("Send frame %d failed", current)
+		logrus.WithError(err).Errorf("Failed to send frame %d", index)
 	}
-	s.m.Lock()
-	s.sent++
-	s.m.Unlock()
-}
-
-func (s *Source) SetFramerate(ctx context.Context, request *ps.SetFramerateRequest) (*ps.SetFramerateResponse, error) {
-	s.m.Lock()
-	s.currentFPS = int(request.FrameRate)
-	s.m.Unlock()
-	logrus.Infof("Change FPS %d", s.currentFPS)
-	return &ps.SetFramerateResponse{}, nil
 }
