@@ -3,6 +3,7 @@ import logging
 import shutil
 import pickle
 import torch
+import time
 import json
 import copy
 import mmcv
@@ -93,14 +94,16 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
             self.frame_dict[(request.edge, request.source)] = []
             LOCK.r_release()
             config = self.framerate_to_retrain_config(framerate)
-            shutil.move(f'{self.emulation_config["model_path"]}/{request.edge}-{request.source}-{request.version}-{config}.pth', self.get_model_dir(request.edge, request.source, request.version))
+            shutil.copy(f'{self.emulation_config["model_path"]}/{request.edge}-{request.source}-{request.version}-{config}.pth', self.get_model_dir(request.edge, request.source, request.version))
+            time.sleep(self.emulation_config['training_delay'])
             return self.convert_profile(profile)
 
         LOCK.w_acquire()
         indices = copy.deepcopy(self.frame_dict[(request.edge, request.source)])
         if len(indices) < RETRAIN_THRESHOLD:
             LOCK.w_release()
-            return trainer_pb2.TriggerRetrainResponse(updated=False)
+            # TODO: fill in retrain profile
+            return trainer_pb2.TriggerRetrainResponse(profile=None, updated=False)
         self.frame_dict[(request.edge, request.source)] = []
         LOCK.w_release()
         template = self.generate_annotation(request.edge, request.source, indices)
@@ -126,14 +129,14 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         train_detector(model, dataset, cfg)
         shutil.move(f'{retrain_dir}/latest.pth', self.get_model_dir(request.edge, request.source, request.version))
         # TODO: fill in retrain profile
-        return trainer_pb2.TriggerRetrainResponse(ret_profile=None, updated=True)
+        return trainer_pb2.TriggerRetrainResponse(profile=None, updated=True)
 
     def convert_profile(self, profile):
-        inf_profiles = []
+        p = []
         for line in profile:
-            inf_profile = trainer_pb2.InfProfile(accuracies=line)
-            inf_profiles.append(inf_profile)
-        return trainer_pb2.RetProfile(inf_profiles=inf_profiles)
+            for v in line:
+                p.append(v)
+        return trainer_pb2.RetProfile(profile=p, updated=True)
 
     def init_model(self):
         return init_detector(self.student_config, self.student_checkpoint, device=self.get_available_gpu())

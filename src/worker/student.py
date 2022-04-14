@@ -1,7 +1,5 @@
-import argparse
 import logging
 import pickle
-import grpc
 import json
 import mmcv
 import cv2
@@ -11,7 +9,6 @@ import worker_pb2
 import worker_pb2_grpc
 
 from mmdet.apis import init_detector, inference_detector
-from concurrent import futures
 
 LOCK = rwlock.RWLock()
 MODEL_FILE = 'models.json'
@@ -20,7 +17,7 @@ FRAME_DIR = 'frames'
 MODEL_DIR = 'models'
 
 
-class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
+class Student(worker_pb2_grpc.WorkerForEdgeServicer):
     def __init__(self, model_name, gpu_name):
         with open(MODEL_FILE) as f:
             models = json.load(f)
@@ -68,24 +65,3 @@ class Worker(worker_pb2_grpc.WorkerForEdgeServicer):
 
     def get_result_dir(self, source, index):
         return f'{self.work_dir}/{RESULT_DIR}/{source}-{index:06d}.jpg'
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description='Object detection')
-    parser.add_argument('--model', '-m', type=str, default='ssd',
-                        help='model use for inference')
-    parser.add_argument('--port', '-p', type=str, default='8086',
-                        help='model use for inference')
-    parser.add_argument('--gpu', '-g', type=str, default='cuda:0',
-                        help="name of GPU device to run inference")
-    args = parser.parse_args()
-
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    worker_pb2_grpc.add_WorkerForEdgeServicer_to_server(
-        Worker(args.model, args.gpu), server)
-    listen_address = f'0.0.0.0:{args.port}'
-    server.add_insecure_port(listen_address)
-    logging.info(f'Inference worker started at {listen_address}')
-    server.start()
-    server.wait_for_termination()

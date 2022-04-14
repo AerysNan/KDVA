@@ -26,6 +26,8 @@ const (
 	COMPUTATION_BOTTLENECK      = 100
 	UPLINK_NETWORK_BOTTLENECK   = 100
 	DOWNLINK_NETWORK_BOTTLENECK = 50
+	N_RETCONFIG                 = 7
+	N_INFCONFIG                 = 5
 )
 
 const (
@@ -35,10 +37,10 @@ const (
 )
 
 type SimulationConfig struct {
-	NEdges                         int `json:"n_edges"`
-	NSourcesPerEdge                int `json:"n_sources_per_edge"`
-	EdgeResourceBottleneckFPS      int `json:"edge_resource_bottleneck_fps"`
-	UplinkResourceBottleneckFPS    int `json:"uplink_resource_bottleneck_fps"`
-	DownlinkResourceBottleneckMbPS int `json:"downlink_resource_bottleneck_mbps"`
-	ModelSizeMb                    int `json:"model_size_mb"`
+	NEdges                         int     `json:"n_edges"`
+	NSourcesPerEdge                int     `json:"n_sources_per_edge"`
+	EdgeResourceBottleneckFPS      int     `json:"edge_resource_bottleneck_fps"`
+	UplinkResourceBottleneckFPS    int     `json:"uplink_resource_bottleneck_fps"`
+	DownlinkResourceBottleneckMbPS float64 `json:"downlink_resource_bottleneck_mbps"`
+	ModelSizeMb                    float64 `json:"model_size_mb"`
 }
