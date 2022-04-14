@@ -4,6 +4,7 @@ bin/
 tmp*
 dump/
 snapshot/
+src/snapshots/
 /cache/
 images*/
 __pycache__/

@@ -24,17 +24,13 @@ type Model struct {
 	version int
 }
 
-type Config struct {
-	InfFPS int
-	RetFPS int
-}
-
 type Source struct {
 	id            int
 	status        int
 	version       int
-	config        Config
-	profile       *pt.RetProfile
+	infConfig     int
+	retConfig     int
+	profile       []float64
 	lastRetrained time.Time
 }
 
@@ -122,6 +118,95 @@ func (c *Cloud) downloadLoop() {
 		}); err != nil {
 			logrus.WithError(err).Errorf("Failed to update model of source %v edge %v", model.source, model, edge)
 			continue
+		} else {
+			c.reallocateResource()
+		}
+	}
+}
+
+func (c *Cloud) reallocateResource() {
+	c.m.Lock()
+	defer c.m.Unlock()
+	sources, totRetConfig := make([]*Source, 0), 0
+	for _, edge := range c.edges {
+		if edge.disabled {
+			continue
+		}
+		for _, source := range edge.sources {
+			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
+				sources = append(sources, source)
+				totRetConfig += source.retConfig
+			}
+		}
+	}
+	for _, source := range sources {
+		source.retConfig = totRetConfig / len(sources)
+	}
+	for i := 0; i < len(sources); i++ {
+		for j := 0; j < len(sources); j++ {
+			if i == j {
+				continue
+			}
+			for {
+				if sources[i].retConfig == util.N_RETCONFIG-1 || sources[j].retConfig == 0 {
+					break
+				}
+				currAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig)]
+				nextAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig+1, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig-1, sources[j].infConfig)]
+				if currAcc > nextAcc {
+					break
+				}
+				sources[i].retConfig++
+				sources[j].retConfig--
+			}
+		}
+	}
+	for _, edge := range c.edges {
+		sources, totInfConfig := make([]*Source, 0), 0
+		for _, source := range edge.sources {
+			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
+				sources = append(sources, source)
+				totInfConfig += source.infConfig
+			}
+		}
+		for _, source := range sources {
+			source.infConfig = totInfConfig / len(sources)
+		}
+		for i := 0; i < len(sources); i++ {
+			for j := 0; j < len(sources); j++ {
+				if i == j {
+					continue
+				}
+				for {
+					if sources[i].infConfig == util.N_INFCONFIG-1 || sources[j].infConfig == 0 {
+						break
+					}
+					currAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig)]
+					nextAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig+1)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig-1)]
+					if currAcc > nextAcc {
+						break
+					}
+					sources[i].infConfig++
+					sources[j].infConfig--
+				}
+			}
+		}
+	}
+	for _, edge := range c.edges {
+		if edge.disabled {
+			continue
+		}
+		for _, source := range edge.sources {
+			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
+				go func(source *Source, edge *Edge) {
+					if _, err := edge.client.UpdateConfig(context.Background(), &pe.CloudUpdateConfigRequest{
+						InfFps: int64(util.InfConfigToFPS(source.infConfig)),
+						RetFps: int64(util.RetConfigToFPS(source.retConfig)),
+					}); err != nil {
+						logrus.WithError(err).Errorf("Update config of source %v edge %v failed", source.id, edge.id)
+					}
+				}(source, edge)
+			}
 		}
 	}
 }
@@ -154,7 +239,7 @@ func (c *Cloud) retrainLoop() {
 						return
 					}
 					source.version++
-					source.profile = response.RetProfile
+					source.profile = response.Profile
 					if response.Updated {
 						logrus.Infof("Retrain model of source %v edge %v skipped", source.id, edge.id)
 						return
@@ -189,14 +274,12 @@ func (c *Cloud) AddEdge(ctx context.Context, request *pc.AddEdgeRequest) (*pc.Ad
 	}
 	for _, id := range request.Sources {
 		edge.sources[int(id)] = &Source{
-			id:      int(id),
-			version: 0,
-			status:  util.SOURCE_STATUS_CONNECTED,
-			profile: &pt.RetProfile{},
-			config: Config{
-				InfFPS: c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
-				RetFPS: c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge,
-			},
+			id:            int(id),
+			version:       0,
+			status:        util.SOURCE_STATUS_CONNECTED,
+			profile:       nil,
+			infConfig:     c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
+			retConfig:     c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge,
 			lastRetrained: time.Now(),
 		}
 	}
@@ -220,13 +303,12 @@ func (c *Cloud) AddSource(ctx context.Context, request *pc.CloudAddSourceRequest
 		return nil, util.ErrSourceExist
 	}
 	edge.sources[int(request.Source)] = &Source{
-		id:      int(request.Source),
-		status:  util.SOURCE_STATUS_CONNECTED,
-		version: 0,
-		profile: &pt.RetProfile{},
-		config: Config{
-			InfFPS: c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
-			RetFPS: c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge},
+		id:            int(request.Source),
+		status:        util.SOURCE_STATUS_CONNECTED,
+		version:       0,
+		profile:       nil,
+		infConfig:     c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
+		retConfig:     c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge,
 		lastRetrained: time.Now(),
 	}
 	edge.m.Unlock()

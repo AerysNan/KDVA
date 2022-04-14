@@ -28,15 +28,6 @@ message TriggerRetrainRequest {
 }
 
 message TriggerRetrainResponse {
-  RetProfile ret_profile = 1;
+  repeated double profile = 1;
   bool updated = 2;
 }
-
-message RetProfile {
-  repeated InfProfile inf_profiles = 1;
-}
-
-message InfProfile {
-  repeated double accuracies = 1;
-}
-

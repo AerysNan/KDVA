@@ -107,34 +107,34 @@ def fake_distill(throughput, fconfig, optimal, use_dp, n_stream, postfix, classw
                 if optimal or use_dp:
                     current_choice = allocate(bottleneck, mmap_observation_epoch)
                 else:
-                    # current_choice = copy.deepcopy(choices[epoch, :])
-                    # s = list(range(n_stream))
-                    # while len(s) > 1:
-                    #     down_grad, up_grad = np.zeros(len(s), dtype=np.double), np.zeros(len(s), dtype=np.double)
-                    #     for i in range(len(s)):
-                    #         down_grad[i] = mmap_observation_epoch[current_choice[s[i]], i] - mmap_observation_epoch[current_choice[s[i]] -
-                    #                                                                                                 1, i] if current_choice[s[i]] > 0 else mmap_observation_epoch[current_choice[s[i]], i]
-                    #         up_grad[i] = down_grad[i] if current_choice[s[i]] < n_config - 1 else -1
-                    #     thief, victim = np.argmax(up_grad), np.argmin(down_grad)
-                    #     current_choice[s[thief]] += 1
-                    #     current_choice[s[victim]] -= 1
-                    #     s.remove(s[thief])
-
                     current_choice = copy.deepcopy(choices[epoch, :])
-                    current_choice[:] = throughput
-                    for i in range(n_stream):
-                        for j in range(n_stream):
-                            if i == j:
-                                continue
-                            while True:
-                                if current_choice[i] == n_config - 1 or current_choice[j] == 0:
-                                    break
-                                current_map = mmap_observation_epoch[current_choice[i], i] + mmap_observation_epoch[current_choice[j], j]
-                                updated_map = mmap_observation_epoch[current_choice[i] + 1, i] + mmap_observation_epoch[current_choice[j]-1, j]
-                                if current_map > updated_map:
-                                    break
-                                current_choice[i] += 1
-                                current_choice[j] -= 1
+                    s = list(range(n_stream))
+                    while len(s) > 1:
+                        down_grad, up_grad = np.zeros(len(s), dtype=np.double), np.zeros(len(s), dtype=np.double)
+                        for i in range(len(s)):
+                            down_grad[i] = mmap_observation_epoch[current_choice[s[i]], i] - mmap_observation_epoch[current_choice[s[i]] -
+                                                                                                                    1, i] if current_choice[s[i]] > 0 else mmap_observation_epoch[current_choice[s[i]], i]
+                            up_grad[i] = down_grad[i] if current_choice[s[i]] < n_config - 1 else -1
+                        thief, victim = np.argmax(up_grad), np.argmin(down_grad)
+                        current_choice[s[thief]] += 1
+                        current_choice[s[victim]] -= 1
+                        s.remove(s[thief])
+
+                    # current_choice = copy.deepcopy(choices[epoch, :])
+                    # current_choice[:] = throughput
+                    # for i in range(n_stream):
+                    #     for j in range(n_stream):
+                    #         if i == j:
+                    #             continue
+                    #         while True:
+                    #             if current_choice[i] == n_config - 1 or current_choice[j] == 0:
+                    #                 break
+                    #             current_map = mmap_observation_epoch[current_choice[i], i] + mmap_observation_epoch[current_choice[j], j]
+                    #             updated_map = mmap_observation_epoch[current_choice[i] + 1, i] + mmap_observation_epoch[current_choice[j]-1, j]
+                    #             if current_map > updated_map:
+                    #                 break
+                    #             current_choice[i] += 1
+                    #             current_choice[j] -= 1
             choices[epoch + 1, :] = current_choice
             mmap_gt_epoch = mmap_distill_class_gt[:, :, epoch + 1] if classwise else mmap_distill_gt[:, :, epoch + 1]
         print(f'Simulating epoch {epoch + 1} finished')

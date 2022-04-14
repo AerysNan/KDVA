@@ -79,3 +79,27 @@ func CloudGetFrameName(edge int, source int, index int) string {
 func CloudGetModelName(edge int, source int, version int) string {
 	return fmt.Sprintf("%d-%d-%d.pth", edge, source, version)
 }
+
+func InfConfigToFPS(cfg int) int {
+	return (cfg + 1) * 5
+}
+
+func RetConfigToFPS(cfg int) int {
+	return cfg
+}
+
+func InfFPSToConfig(fps int) int {
+	return fps/5 - 1
+}
+
+func RetFPSToConfig(fps int) int {
+	return fps
+}
+
+func ConfigToIndex(retCfg int, infCfg int) int {
+	return retCfg*N_INFCONFIG + infCfg
+}
+
+func IndexToConfig(index int) (int, int) {
+	return index / N_INFCONFIG, index % N_INFCONFIG
+}
