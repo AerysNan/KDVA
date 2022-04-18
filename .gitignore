@@ -1,17 +1,6 @@
-checkpoints/
-data/
 bin/
-tmp*
-dump/
-snapshot/
-src/snapshots/
-/cache/
-images*/
 __pycache__/
-log/
 *.pb.go
 *pb2.py
 *pb2_grpc.py
-run*.sh
-
 datasets.json

@@ -5,7 +5,6 @@ go 1.17
 require (
 	github.com/sirupsen/logrus v1.8.1
 	google.golang.org/grpc v1.42.0
-	google.golang.org/protobuf v1.27.1
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
@@ -17,4 +16,5 @@ require (
 	golang.org/x/sys v0.0.0-20211111213525-f221eed1c01e // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20211111162719-482062a4217b // indirect
+	google.golang.org/protobuf v1.27.1 // indirect
 )
