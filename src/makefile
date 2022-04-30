@@ -1,4 +1,4 @@
-GO_PROTOS = source edge cloud worker trainer
+GO_PROTOS = edge cloud worker trainer
 PY_PROTOS = worker trainer cloud
 BINS = source edge cloud
 
