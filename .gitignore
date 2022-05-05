@@ -1,4 +1,5 @@
 bin/
+tmp*
 __pycache__/
 *.pb.go
 *pb2.py

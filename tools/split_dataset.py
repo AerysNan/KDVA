@@ -17,7 +17,7 @@ def generate_sample_position(sample_count, sample_interval, offset=0):
     return pos
 
 
-def split_dataset(dataset, size, train_rate, val_rate, val_size, postfix, **_):
+def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, **_):
     if train_rate is not None:
         train_sample_count, train_sample_interval = [int(v) for v in train_rate.split('/')]
         sample_pos_train = generate_sample_position(train_sample_count, train_sample_interval, 0)
@@ -28,11 +28,11 @@ def split_dataset(dataset, size, train_rate, val_rate, val_size, postfix, **_):
         datasets = json.load(f)
 
     epoch_count = datasets[dataset]["size"] // size
-    if os.path.exists(f"data/annotations/{dataset}.gt.json"):
-        annotation_all = json.load(open(f"data/annotations/{dataset}.gt.json"))
+    if os.path.exists(f"{path}/{dataset}.gt.json"):
+        annotation_all = json.load(open(f"{path}/annotations/{dataset}.gt.json"))
     else:
         annotation_all = None
-    annotation_golden = json.load(open(f"data/annotations/{dataset}.golden.json"))
+    annotation_golden = json.load(open(f"{path}/annotations/{dataset}.golden.json"))
     if train_rate is not None:
         annotation_train_list = [
             {"images": [], "annotations": [], "categories": annotation_golden["categories"]}
@@ -69,7 +69,7 @@ def split_dataset(dataset, size, train_rate, val_rate, val_size, postfix, **_):
             annotation_train_list[epoch]["images"].append(image)
         if val_rate is not None and offset % val_sample_interval in sample_pos_val:
             annotation_val_list[epoch]["images"].append(image)
-        if val_size is not None and offset < val_size:
+        if val_size is not None and (val_size > 0 and offset < val_size or val_size < 0 and offset - size >= val_size):
             annotation_val_list[epoch]["images"].append(image)
 
     for annotation in annotation_golden["annotations"]:
@@ -80,7 +80,7 @@ def split_dataset(dataset, size, train_rate, val_rate, val_size, postfix, **_):
             annotation_train_list[epoch]["annotations"].append(annotation)
         if val_rate is not None and offset % val_sample_interval in sample_pos_val:
             annotation_val_list[epoch]["annotations"].append(annotation)
-        if val_size is not None and offset < val_size:
+        if val_size is not None and (val_size > 0 and offset < val_size or val_size < 0 and offset - size >= val_size):
             annotation_val_list[epoch]["annotations"].append(annotation)
 
     for epoch in range(epoch_count):
@@ -94,21 +94,22 @@ def split_dataset(dataset, size, train_rate, val_rate, val_size, postfix, **_):
                         "region": ignored_region["region"]
                     })
         if train_rate is not None:
-            with open(f"data/annotations/{dataset}_{postfix}_train_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/annotations/{dataset}_{postfix}_train_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_train_list[epoch], f)
         if val_rate is not None or val_size is not None:
-            with open(f"data/annotations/{dataset}_{postfix}_val_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/annotations/{dataset}_{postfix}_val_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_val_list[epoch], f)
-        with open(f"data/annotations/{dataset}_test_{epoch}.golden.json", "w") as f:
+        with open(f"{path}/annotations/{dataset}_test_{epoch}.golden.json", "w") as f:
             json.dump(annotation_test_golden_list[epoch], f)
         if annotation_all:
-            with open(f"data/annotations/{dataset}_test_{epoch}.gt.json", "w") as f:
+            with open(f"{path}/annotations/{dataset}_test_{epoch}.gt.json", "w") as f:
                 json.dump(annotation_test_gt_list[epoch], f)
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Generate config file")
+    parser.add_argument("--path", "-p", help="dataset path", type=str, required=True)
     parser.add_argument("--dataset", "-d", help="dataset name", type=str, required=True)
     parser.add_argument("--size", "-s", help="size of splitted dataset", type=int, default=500)
     parser.add_argument("--train-rate", "-t", help="sampling rate of training dataset", type=str, default=None)

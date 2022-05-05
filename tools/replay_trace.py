@@ -10,7 +10,7 @@ from split_dataset import generate_sample_position
 ORIGINAL_FRAMERATE = 25
 
 
-def replay_trace(path, name, framerate, size, gt=False, summarize=False, **_):
+def replay_trace(root, path, name, framerate, size, gt=False, summarize=False, **_):
     with open('datasets.json') as f:
         datasets = json.load(f)
     if not name in datasets:
@@ -23,7 +23,7 @@ def replay_trace(path, name, framerate, size, gt=False, summarize=False, **_):
     results = []
     mAP = []
     for i in range(n_epoch):
-        with open(f'{path}/{i:02d}.pkl', 'rb') as f:
+        with open(f'{root}/{path}/{i:02d}.pkl', 'rb') as f:
             result = pickle.load(f)
         positions = generate_sample_position(framerate[i], ORIGINAL_FRAMERATE)
         for start in range(0, size, ORIGINAL_FRAMERATE):
@@ -33,15 +33,16 @@ def replay_trace(path, name, framerate, size, gt=False, summarize=False, **_):
             for k in range(positions[-1] + 1, ORIGINAL_FRAMERATE):
                 result[start + k] = result[positions[-1]]
         if not summarize:
-            mAP.append(evaluate_from_file(result, f'data/annotations/{key}_test_{i}.{"golden" if not gt else "gt"}.json'))
+            mAP.append(evaluate_from_file(result, f'{root}/data/annotations/{key}_test_{i}.{"golden" if not gt else "gt"}.json'))
         results.extend(result)
-    mAP.append(evaluate_from_file(results, f'data/annotations/{key}.{"golden" if not gt else "gt"}.json'))
+    mAP.append(evaluate_from_file(results, f'{root}/data/annotations/{key}.{"golden" if not gt else "gt"}.json'))
     return mAP
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Replay a single trace')
+    parser.add_argument('--root', '-r', help='data root', type=str, required=True)
     parser.add_argument('--path', '-p', help='path to result files', type=str, required=True)
     parser.add_argument('--name', '-d', type=str, required=True, help='name of dataset')
     parser.add_argument('--framerate', '-f', type=int, default=25, help='replay framerate')
