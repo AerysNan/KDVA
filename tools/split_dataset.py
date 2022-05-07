@@ -82,7 +82,7 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
             annotation_val_list[epoch]["annotations"].append(annotation)
         if val_size is not None and (val_size > 0 and offset < val_size or val_size < 0 and offset - size >= val_size):
             annotation_val_list[epoch]["annotations"].append(annotation)
-
+    postfix = f'_{postfix}' if postfix is not None else ''
     for epoch in range(epoch_count):
         if annotation_all and 'ignored_regions' in annotation_all:
             for ignored_region in annotation_all["ignored_regions"]:
@@ -94,10 +94,10 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
                         "region": ignored_region["region"]
                     })
         if train_rate is not None:
-            with open(f"{path}/annotations/{dataset}_{postfix}_train_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/annotations/{dataset}{postfix}_train_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_train_list[epoch], f)
         if val_rate is not None or val_size is not None:
-            with open(f"{path}/annotations/{dataset}_{postfix}_val_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/annotations/{dataset}{postfix}_val_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_val_list[epoch], f)
         with open(f"{path}/annotations/{dataset}_test_{epoch}.golden.json", "w") as f:
             json.dump(annotation_test_golden_list[epoch], f)
@@ -115,6 +115,6 @@ if __name__ == '__main__':
     parser.add_argument("--train-rate", "-t", help="sampling rate of training dataset", type=str, default=None)
     parser.add_argument("--val-rate", "-r", help="sampling rate of validation dataset", type=str, default=None)
     parser.add_argument("--val-size", "-v", help="sampling size of validation dataset", type=int, default=None)
-    parser.add_argument("--postfix", "-o", help="generated postfix", type=str)
+    parser.add_argument("--postfix", "-o", help="generated postfix", type=str, default=None)
     args = parser.parse_args()
     split_dataset(**args.__dict__)

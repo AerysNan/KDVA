@@ -1,3 +1,4 @@
+DATAPATH=/home/ubuntu/data
 PREFIX=$1
 SIZE=$2
 DEVICE=$3

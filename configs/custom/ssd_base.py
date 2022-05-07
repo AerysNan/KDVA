@@ -1,5 +1,5 @@
 _base_ = [
-    '../ssdlite_mobilenetv2_scratch_600e_coco.py'
+    '../base/ssdlite_mobilenetv2_scratch_600e_coco.py'
 ]
 
 dataset_type = 'CocoDataset'
@@ -20,7 +20,7 @@ data = dict(
 load_from = 'checkpoints/ssd.pth'
 
 # maximum training epochs
-runner = dict(type='EpochBasedRunner', max_epochs=20)
+runner = dict(type='EpochBasedRunner', max_epochs=40)
 
 workflow = [('train', 1)]
 

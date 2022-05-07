@@ -6,6 +6,7 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='Merge traces')
+parser.add_argument('--root', '-r', type=str, required=True, help='Data root')
 parser.add_argument('--output', '-o', type=str, required=True, help='Output trace name')
 parser.add_argument('--input', '-i', type=str, required=True, help='Input traces file')
 parser.add_argument('--gt', '-g', type=ast.literal_eval, default=True, help='Generate groundtruth file')
@@ -32,18 +33,18 @@ f.close()
 annotation_only = args.annotation_only
 
 if not annotation_only:
-    os.makedirs(f'data/{args.output}', exist_ok=True)
+    os.makedirs(f'{args.root}/data/{args.output}', exist_ok=True)
 
 
 for i, dataset in enumerate(datasets):
     d = {}
-    with open(f'data/annotations/{dataset}.{"gt" if args.gt else "golden"}.json') as f:
+    with open(f'{args.root}/data/annotations/{dataset}.{"gt" if args.gt else "golden"}.json') as f:
         dataset_annotation = json.load(f)
     if not annotation_only:
-        files = os.listdir(f'data/{dataset}')
+        files = os.listdir(f'{args.root}/data/{dataset}')
         files.sort()
         for file in files:
-            copyfile(f'data/{dataset}/{file}', f'data/{args.output}/{image_count:06d}.jpg')
+            copyfile(f'{args.root}/data/{dataset}/{file}', f'{args.root}/data/{args.output}/{image_count:06d}.jpg')
             image_count += 1
     else:
         image_count += len(dataset_annotation['images'])
@@ -66,5 +67,5 @@ for i, dataset in enumerate(datasets):
             region['end'] = d[region['end'] - 1] + 1
             output_annotation['ignored_regions'].append(region)
 
-with open(f'data/annotations/{args.output}.{"gt" if args.gt else "golden"}.json', 'w') as f:
+with open(f'{args.root}/data/annotations/{args.output}.{"gt" if args.gt else "golden"}.json', 'w') as f:
     json.dump(output_annotation, f)
