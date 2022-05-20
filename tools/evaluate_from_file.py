@@ -1,4 +1,6 @@
+import os
 import sys
+import ast
 import json
 import math
 import pickle
@@ -40,14 +42,22 @@ def filter_result(result, ignored_regions, start, threshold=0.5):
                 result[i][j] = class_result[indices]
 
 
-def evaluate_from_file(result_path, gt_path, downsample=None, config='configs/custom/ssd_base.py', threshold=0.5):
+def evaluate_from_file(result_path, gt_path, downsample=None, merge=False, config='configs/custom/ssd_base.py', threshold=0.5):
     cfg = Config.fromfile(config)
     cfg.data.test.ann_file = gt_path
     cfg.data.test.img_prefix = ""
     dataset = build_dataset(cfg.data.test)
     if type(result_path) == str:
-        with open(result_path, "rb") as f:
-            result = pickle.load(f)
+        if not merge:
+            with open(result_path, "rb") as f:
+                result = pickle.load(f)
+        else:
+            result = []
+            files = os.listdir(result_path)
+            files.sort()
+            for file in files:
+                with open(f'{result_path}/{file}', 'rb') as f:
+                    result.extend(pickle.load(f))
     elif type(result_path) == list:
         result = result_path
     else:
@@ -80,6 +90,7 @@ if __name__ == "__main__":
     parser.add_argument("--gt", "-g", help="ground truth file path", type=str, required=True)
     parser.add_argument("--threshold", "-t", help="iou threshold", type=float, default=0.5)
     parser.add_argument("--downsample", "-d", help="downsample rate", type=str, default=None)
+    parser.add_argument("--merge", "-m", help="merge results", type=ast.literal_eval, default=False)
     args = parser.parse_args()
     if args.downsample is not None:
         downsample = args.downsample.split('/')

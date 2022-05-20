@@ -17,6 +17,7 @@ def parse_args():
         type=str,
         help='The output annotation json file name, The save dir is in the '
         'same directory as img_path')
+    parser.add_argument('--root', '-r', help='Data root', default=None)
     parser.add_argument(
         '-e',
         '--exclude-extensions',
@@ -27,19 +28,19 @@ def parse_args():
     return args
 
 
-def collect_image_infos(path, exclude_extensions=None):
+def collect_image_infos(root, path, exclude_extensions=None):
     img_infos = []
 
-    images_generator = os.listdir(path)
+    images_generator = os.listdir(os.path.join(root, path))
     images_generator.sort()
     for image_path in images_generator:
         if exclude_extensions is None or (
                 exclude_extensions is not None
                 and not image_path.lower().endswith(exclude_extensions)):
-            image_path = os.path.join(path, image_path)
+            image_path = os.path.join(root, path, image_path)
             img_pillow = Image.open(image_path)
             img_info = {
-                'filename': image_path,
+                'filename': os.path.join(path, image_path),
                 'width': img_pillow.width,
                 'height': img_pillow.height,
             }
@@ -84,14 +85,14 @@ def main():
         'json'), 'The output file name must be json suffix'
 
     # 1 load image list info
-    img_infos = collect_image_infos(args.img_path, args.exclude_extensions)
+    img_infos = collect_image_infos(args.root, args.img_path, args.exclude_extensions)
 
     # 2 convert to coco format data
     classes = mmcv.list_from_file(args.classes)
     coco_info = cvt_to_coco_json(img_infos, classes)
 
     # 3 dump
-    save_dir = os.path.join(args.img_path, '..', 'annotations')
+    save_dir = os.path.join(args.root, args.img_path, '..', 'annotations')
     mmcv.mkdir_or_exist(save_dir)
     save_path = os.path.join(save_dir, args.out)
     mmcv.dump(coco_info, save_path)

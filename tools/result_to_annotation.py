@@ -4,16 +4,18 @@ import argparse
 from evaluate_from_file import filter_result
 
 parser = argparse.ArgumentParser(description='Convert result to annotation file')
+parser.add_argument("--root", "-r", help="dataset root", type=str, required=True)
 parser.add_argument('--path', '-p', help='result file path', type=str, required=True)
 parser.add_argument('--dataset', '-d', help='dataset name', type=str, required=True)
-parser.add_argument('--threshold', '-t', type=float, default=0.4, help='confidence threshold for result filter')
+parser.add_argument('--threshold', '-t', type=float, default=0.5, help='confidence threshold for result filter')
 args = parser.parse_args()
 
-with open(args.path, 'rb') as f:
+with open(f'{args.root}/{args.path}', 'rb') as f:
     results = pickle.load(f)
 
-with open(f'data/annotations/{args.dataset}.base.json') as f:
+with open(f'{args.root}/data/annotations/{args.dataset}.golden.json') as f:
     data = json.load(f)
+data['annotations'] = []
 uid = 0
 
 
@@ -34,5 +36,5 @@ for i, frame_result in enumerate(results):
             data["annotations"].append(annotation)
             uid += 1
 
-with open(f'data/annotations/{args.dataset}.golden.json', 'w') as f:
+with open(f'{args.root}/data/annotations/{args.dataset}.golden.json', 'w') as f:
     json.dump(data, f)

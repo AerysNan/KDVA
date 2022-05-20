@@ -17,7 +17,7 @@ def generate_sample_position(sample_count, sample_interval, offset=0):
     return pos
 
 
-def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, **_):
+def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, test_postfix, **_):
     if train_rate is not None:
         train_sample_count, train_sample_interval = [int(v) for v in train_rate.split('/')]
         sample_pos_train = generate_sample_position(train_sample_count, train_sample_interval, 0)
@@ -29,10 +29,10 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
 
     epoch_count = datasets[dataset]["size"] // size
     if os.path.exists(f"{path}/{dataset}.gt.json"):
-        annotation_all = json.load(open(f"{path}/annotations/{dataset}.gt.json"))
+        annotation_all = json.load(open(f"{path}/data/annotations/{dataset}.gt.json"))
     else:
         annotation_all = None
-    annotation_golden = json.load(open(f"{path}/annotations/{dataset}.golden.json"))
+    annotation_golden = json.load(open(f"{path}/data/annotations/{dataset}.golden.json"))
     if train_rate is not None:
         annotation_train_list = [
             {"images": [], "annotations": [], "categories": annotation_golden["categories"]}
@@ -82,7 +82,8 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
             annotation_val_list[epoch]["annotations"].append(annotation)
         if val_size is not None and (val_size > 0 and offset < val_size or val_size < 0 and offset - size >= val_size):
             annotation_val_list[epoch]["annotations"].append(annotation)
-    postfix = f'_{postfix}' if postfix is not None else ''
+    postfix = (f'_{postfix}-{test_postfix}' if test_postfix is not None else f'_{postfix}') if postfix is not None else ''
+    test_postfix = f'_{test_postfix}' if test_postfix is not None else ''
     for epoch in range(epoch_count):
         if annotation_all and 'ignored_regions' in annotation_all:
             for ignored_region in annotation_all["ignored_regions"]:
@@ -94,15 +95,15 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
                         "region": ignored_region["region"]
                     })
         if train_rate is not None:
-            with open(f"{path}/annotations/{dataset}{postfix}_train_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/data/annotations/{dataset}{postfix}_train_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_train_list[epoch], f)
         if val_rate is not None or val_size is not None:
-            with open(f"{path}/annotations/{dataset}{postfix}_val_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/data/annotations/{dataset}{postfix}_val_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_val_list[epoch], f)
-        with open(f"{path}/annotations/{dataset}_test_{epoch}.golden.json", "w") as f:
+        with open(f"{path}/data/annotations/{dataset}{test_postfix}_test_{epoch}.golden.json", "w") as f:
             json.dump(annotation_test_golden_list[epoch], f)
         if annotation_all:
-            with open(f"{path}/annotations/{dataset}_test_{epoch}.gt.json", "w") as f:
+            with open(f"{path}/data/annotations/{dataset}{test_postfix}_test_{epoch}.gt.json", "w") as f:
                 json.dump(annotation_test_gt_list[epoch], f)
 
 
@@ -116,5 +117,6 @@ if __name__ == '__main__':
     parser.add_argument("--val-rate", "-r", help="sampling rate of validation dataset", type=str, default=None)
     parser.add_argument("--val-size", "-v", help="sampling size of validation dataset", type=int, default=None)
     parser.add_argument("--postfix", "-o", help="generated postfix", type=str, default=None)
+    parser.add_argument("--test-postfix", "-to", help="generated test postfix", type=str, default=None)
     args = parser.parse_args()
     split_dataset(**args.__dict__)
