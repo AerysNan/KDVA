@@ -3,7 +3,7 @@ DATAPATH=/home/ubuntu/data
 PREFIX=$1
 SIZE=$2
 POSTFIX=$3
-CONFIG=bh
+CONFIG=split
 DEVICE=$4
 
 echo processing dataset ${PREFIX}_${POSTFIX}_${CONFIG} with size ${SIZE}
@@ -25,9 +25,9 @@ CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_test.py configs/custom/ssd_na
 for i in $(seq 1 1 $(expr ${SIZE} - 1))
 do
   if [ $(expr ${i} % 3) -eq 0 ]; then
-    CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fb.py --work-dir ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}_backbone/ --train-dataset ${PREFIX}_2-1500_train_$(expr ${i} / 3 - 1) --no-validate --seed 0 --deterministic -p ${DATAPATH} --load-from ${DATAPATH}/checkpoints/ssd.pth
+    CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fh.py --work-dir ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}_backbone/ --train-dataset ${PREFIX}_2-10800_train_$(expr ${i} / 3 - 1) --no-validate --seed 0 --deterministic -p ${DATAPATH} --load-from ${DATAPATH}/checkpoints/ssd.pth
   fi
-  CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fh.py --work-dir ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}/ --train-dataset ${PREFIX}_${POSTFIX}_train_$(expr ${i} - 1) --no-validate --seed 0 --deterministic -p ${DATAPATH} --load-from ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}_backbone/latest.pth
+  CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_train.py configs/custom/ssd_fb.py --work-dir ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}/ --train-dataset ${PREFIX}_${POSTFIX}_train_$(expr ${i} - 1) --no-validate --seed 0 --deterministic -p ${DATAPATH} --load-from ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}_backbone/latest.pth
   cp ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}/latest.pth ${DATAPATH}/snapshot/models/${PREFIX}_${POSTFIX}_${CONFIG}/${i}.pth
   CUDA_VISIBLE_DEVICES=${DEVICE} python3 tools/model_test.py configs/custom/ssd_na.py ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}/latest.pth --out ${DATAPATH}/tmp_${PREFIX}_${POSTFIX}_${CONFIG}/$(printf %02d ${i}).pkl -d ${PREFIX}_test_${i} -p ${DATAPATH}
 done

@@ -42,7 +42,7 @@ def filter_result(result, ignored_regions, start, threshold=0.5):
                 result[i][j] = class_result[indices]
 
 
-def evaluate_from_file(result_path, gt_path, downsample=None, merge=False, config='configs/custom/ssd_base.py', threshold=0.5):
+def evaluate_from_file(result_path, gt_path, downsample=None, merge=False, config='configs/custom/ssd_base.py', threshold=0.5, **_):
     cfg = Config.fromfile(config)
     cfg.data.test.ann_file = gt_path
     cfg.data.test.img_prefix = ""
@@ -86,8 +86,8 @@ def evaluate_from_file(result_path, gt_path, downsample=None, merge=False, confi
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MMDet evaluate from pickle file")
     parser.add_argument("--config", "-c", help="test config file path", default="configs/custom/ssd_base.py")
-    parser.add_argument("--result", "-r", help="result file path", type=str, required=True)
-    parser.add_argument("--gt", "-g", help="ground truth file path", type=str, required=True)
+    parser.add_argument("--result-path", "-r", help="result file path", type=str, required=True)
+    parser.add_argument("--gt-path", "-g", help="ground truth file path", type=str, required=True)
     parser.add_argument("--threshold", "-t", help="iou threshold", type=float, default=0.5)
     parser.add_argument("--downsample", "-d", help="downsample rate", type=str, default=None)
     parser.add_argument("--merge", "-m", help="merge results", type=ast.literal_eval, default=False)
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     if args.downsample is not None:
         downsample = args.downsample.split('/')
         args.downsample = (int(downsample[0]), int(downsample[1]))
-    evaluation = evaluate_from_file(args.result, args.gt, args.downsample, args.config, args.threshold)
+    evaluation = evaluate_from_file(**args.__dict__)
     # classes_of_interest = ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck']
     classes_of_interest = ['car']
     mAPs_classwise = [evaluation["classwise"][c] for c in classes_of_interest if not math.isnan(evaluation["classwise"][c])]

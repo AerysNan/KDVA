@@ -80,10 +80,10 @@ def hc(bottleneck, profit_matrix):
     return choices, visited
 
 
-def fake_distill(root, throughput, iconfig, mode, n_stream, postfix, profile, classwise, estimate, ** _):
+def fake_distill(root, prefix, throughput, iconfig, mode, n_stream, postfix, profile, classwise, estimate, ** _):
     with open('datasets.json') as f:
         datasets = json.load(f)
-    with open(f'configs/cache/detrac_{postfix}.pkl', 'rb') as f:
+    with open(f'configs/cache/{prefix}_{postfix}.pkl', 'rb') as f:
         mmap = pickle.load(f)
     mmap_total, mmap_total_class = mmap['data'][:, iconfig, :n_stream, -1], mmap['classwise_data'][:, iconfig, :n_stream, -1]
     mmap_by_epoch, mmap_by_epoch_class = mmap['data'][:, iconfig, :n_stream, :-1], mmap['classwise_data'][:, iconfig, :n_stream, :-1]
@@ -213,6 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('--iconfig', '-f', type=int, default=4, help='inference configuration')
     parser.add_argument('--n-stream', '-n', type=int, default=4, help='number of streams')
     parser.add_argument('--profile', '-i', type=str, default=None, help='accuracy profile')
+    parser.add_argument('--prefix', '-b', type=str, default="detrac", help='dataset prefix')
     parser.add_argument('--postfix', '-p', type=str, default="short", help='dataset postfix')
     parser.add_argument('--classwise', '-c', type=ast.literal_eval, default=True, help='single class detection')
     parser.add_argument('--estimate', '-e', type=ast.literal_eval, default=True, help='estimate mAP')
