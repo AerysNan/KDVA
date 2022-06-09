@@ -1,0 +1,19 @@
+description: Cloud-edge collaborative online learning
+
+environment:
+  image: aerysnan/kdva:latest
+
+code:
+  # local directory of the code. this will be uploaded to the server.
+  # $CONFIG_DIR is expanded to the directory of this config file
+  local_dir: $CONFIG_DIR
+
+# data:
+#   data upload is not required for this example
+
+# list of jobs to run, we run 2 jobs in this example
+jobs:
+- name: high_lr
+  sku: G1
+  command:
+  - python main.py --lr 0.5
