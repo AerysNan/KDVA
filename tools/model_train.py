@@ -19,7 +19,7 @@ from mmdet.models import build_detector
 from mmdet.utils import collect_env, get_root_logger
 
 
-def train(config, work_dir, datapath, train_dataset=None, val_dataset=None, test_dataset=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, no_test=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
+def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dataset=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, no_test=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
     cfg = Config.fromfile(config)
     if cfg_options is not None:
         cfg.merge_from_dict(cfg_options)
@@ -95,16 +95,16 @@ def train(config, work_dir, datapath, train_dataset=None, val_dataset=None, test
         test_cfg=cfg.get('test_cfg'))
     model.init_weights()
     if train_dataset is not None:
-        cfg.data.train.ann_file = f'{datapath}/data/annotations/{train_dataset}.golden.json'
-        cfg.data.train.img_prefix = datapath
+        cfg.data.train.ann_file = f'{root}/data/annotations/{train_dataset}.golden.json'
+        cfg.data.train.img_prefix = root
     if val_dataset is not None:
-        cfg.data.val.ann_file = f'{datapath}/data/annotations/{val_dataset}.golden.json'
-        cfg.data.val.img_prefix = datapath
+        cfg.data.val.ann_file = f'{root}/data/annotations/{val_dataset}.golden.json'
+        cfg.data.val.img_prefix = root
     else:
         no_validate = True
     if test_dataset is not None:
-        cfg.data.test.ann_file = f'{datapath}/data/annotations/{test_dataset}.gt.json'
-        cfg.data.test.img_prefix = datapath
+        cfg.data.test.ann_file = f'{root}/data/annotations/{test_dataset}.gt.json'
+        cfg.data.test.img_prefix = root
     else:
         no_test = True
     if load_from is not None:
@@ -192,7 +192,7 @@ if __name__ == '__main__':
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
-    parser.add_argument('--datapath', '-p', help='customized dataset path', type=str, default=None)
+    parser.add_argument('--root', '-p', help='customized dataset path', type=str, default=None)
     parser.add_argument('--train-dataset', help='customized train dataset name', type=str, default=None)
     parser.add_argument('--val-dataset', help='customized validation dataset name', type=str, default=None)
     parser.add_argument('--test-dataset', help='customized test dataset name', type=str, default=None)

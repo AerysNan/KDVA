@@ -2,6 +2,8 @@ import os
 import json
 import argparse
 
+ANNO_DIR = 'data/annotations'
+
 
 def generate_sample_position(sample_count, sample_interval, offset=0):
     sample_win, total = [1 for _ in range(sample_count)], sample_count
@@ -29,10 +31,10 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
 
     epoch_count = datasets[dataset]["size"] // size
     if os.path.exists(f"{path}/{dataset}.gt.json"):
-        annotation_all = json.load(open(f"{path}/data/annotations/{dataset}.gt.json"))
+        annotation_all = json.load(open(f"{path}/{ANNO_DIR}/{dataset}.gt.json"))
     else:
         annotation_all = None
-    annotation_golden = json.load(open(f"{path}/data/annotations/{dataset}.golden.json"))
+    annotation_golden = json.load(open(f"{path}/{ANNO_DIR}/{dataset}.golden.json"))
     if train_rate is not None:
         annotation_train_list = [
             {"images": [], "annotations": [], "categories": annotation_golden["categories"]}
@@ -95,15 +97,15 @@ def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, 
                         "region": ignored_region["region"]
                     })
         if train_rate is not None:
-            with open(f"{path}/data/annotations/{dataset}{postfix}_train_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/{ANNO_DIR}/{dataset}{postfix}_train_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_train_list[epoch], f)
         if val_rate is not None or val_size is not None:
-            with open(f"{path}/data/annotations/{dataset}{postfix}_val_{epoch}.golden.json", "w") as f:
+            with open(f"{path}/{ANNO_DIR}/{dataset}{postfix}_val_{epoch}.golden.json", "w") as f:
                 json.dump(annotation_val_list[epoch], f)
-        with open(f"{path}/data/annotations/{dataset}{test_postfix}_test_{epoch}.golden.json", "w") as f:
+        with open(f"{path}/{ANNO_DIR}/{dataset}{test_postfix}_test_{epoch}.golden.json", "w") as f:
             json.dump(annotation_test_golden_list[epoch], f)
         if annotation_all:
-            with open(f"{path}/data/annotations/{dataset}{test_postfix}_test_{epoch}.gt.json", "w") as f:
+            with open(f"{path}/{ANNO_DIR}/{dataset}{test_postfix}_test_{epoch}.gt.json", "w") as f:
                 json.dump(annotation_test_gt_list[epoch], f)
 
 

@@ -19,7 +19,7 @@ from mmdet.datasets import (build_dataloader, build_dataset,
 from mmdet.models import build_detector
 
 
-def test(config, checkpoint, out, dataset, datapath, work_dir=None, fuse_conv_bn=False, format_only=False, eval=None, show=False, show_dir=None, show_score_thr=0.3, gpu_collect=False, tmpdir=None, cfg_options=None, eval_options=None, launcher='none', **_):
+def test(config, checkpoint, out, dataset, root, work_dir=None, fuse_conv_bn=False, format_only=False, eval=None, show=False, show_dir=None, show_score_thr=0.3, gpu_collect=False, tmpdir=None, cfg_options=None, eval_options=None, launcher='none', **_):
     assert out or eval or format_only or show \
         or show_dir, \
         ('Please specify at least one operation (save/eval/format/show the '
@@ -88,8 +88,8 @@ def test(config, checkpoint, out, dataset, datapath, work_dir=None, fuse_conv_bn
 
     # overwrite test configuration
     if dataset is not None:
-        cfg.data.test.ann_file = f'{datapath}/data/annotations/{dataset}.golden.json'
-        cfg.data.test.img_prefix = datapath
+        cfg.data.test.ann_file = f'{root}/data/annotations/{dataset}.golden.json'
+        cfg.data.test.img_prefix = root
     # build the dataloader
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
@@ -221,7 +221,7 @@ if __name__ == '__main__':
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--datapath', '-p', help='customized dataset path', type=str, default=None)
+    parser.add_argument('--root', '-p', help='customized dataset path', type=str, default=None)
     parser.add_argument('--dataset', '-d', help='customized dataset name', type=str, default=None)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:

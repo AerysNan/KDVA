@@ -20,7 +20,7 @@ def batch_validate(path, dataset, stream_l, stream_r, retrain_l, retrain_r, post
                     os.makedirs(f'{path}/snapshot/result/{dataset}_{_stream}_basev', exist_ok=True)
                     for e in range(1, epoch):
                         test('configs/custom/ssd_base.py', f'{path}/checkpoints/ssd.pth',
-                             datapath=path,
+                             root=path,
                              dataset=f'{dataset}_{stream}_val_{e-1}',
                              out=f'{path}/snapshot/result/{dataset}_{_stream}_basev/{e:02d}.pkl'
                              )
@@ -28,7 +28,7 @@ def batch_validate(path, dataset, stream_l, stream_r, retrain_l, retrain_r, post
                     os.makedirs(f'{path}/snapshot/result/{dataset}_{_stream}_{retrain}_{postfix}v', exist_ok=True)
                     for e in range(1, epoch):
                         test('configs/custom/ssd_base.py', f'{path}/snapshot/models/{dataset}_{_stream}_{retrain}_{postfix}/{e}.pth',
-                             datapath=path,
+                             root=path,
                              dataset=f'{dataset}_{stream}_val_{e-1}',
                              out=f'{path}/snapshot/result/{dataset}_{_stream}_{retrain}_{postfix}v/{e:02d}.pkl'
                              )
@@ -37,7 +37,7 @@ def batch_validate(path, dataset, stream_l, stream_r, retrain_l, retrain_r, post
                     os.makedirs(f'{path}/snapshot/result/{dataset}_{_stream}_base', exist_ok=True)
                     for e in range(epoch):
                         test('configs/custom/ssd_base.py', f'{path}/checkpoints/ssd.pth',
-                             datapath=path,
+                             root=path,
                              dataset=f'{dataset}_{stream}_test_{e}',
                              out=f'{path}/snapshot/result/{dataset}_{_stream}_base/{e:02d}.pkl'
                              )
@@ -45,7 +45,7 @@ def batch_validate(path, dataset, stream_l, stream_r, retrain_l, retrain_r, post
                     os.makedirs(f'{path}/snapshot/result/{dataset}_{_stream}_{retrain}_{postfix}', exist_ok=True)
                     for e in range(epoch):
                         test('configs/custom/ssd_base.py', f'{path}/snapshot/models/{dataset}_{_stream}_{retrain}_{postfix}/{e}.pth',
-                             datapath=path,
+                             root=path,
                              dataset=f'{dataset}_{stream}_test_{e}',
                              out=f'{path}/snapshot/result/{dataset}_{_stream}_{retrain}_{postfix}/{e:02d}.pkl'
                              )
