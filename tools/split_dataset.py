@@ -19,14 +19,14 @@ def generate_sample_position(sample_count, sample_interval, offset=0):
     return pos
 
 
-def split_dataset(path, dataset, size, train_rate, val_rate, val_size, postfix, test_postfix, **_):
+def split_dataset(path, dataset, size, train_rate, val_rate=None, val_size=None, postfix=None, test_postfix=None, **_):
     if train_rate is not None:
         train_sample_count, train_sample_interval = [int(v) for v in train_rate.split('/')]
         sample_pos_train = generate_sample_position(train_sample_count, train_sample_interval, 0)
     if val_rate is not None:
         val_sample_count, val_sample_interval = [int(v) for v in val_rate.split('/')]
         sample_pos_val = generate_sample_position(val_sample_count, val_sample_interval, val_sample_interval // val_sample_count // 2)
-    with open('datasets.json') as f:
+    with open('cfg_data.json') as f:
         datasets = json.load(f)
 
     epoch_count = datasets[dataset]["size"] // size

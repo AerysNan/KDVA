@@ -1,4 +1,11 @@
 description: Cloud-edge collaborative online learning
+
+target:
+  service: amlk8s
+  # run "amlt target list amlk8s" to list the names of available AMLK8s targets
+  name: itplabrr1cl1
+  vc: resrchvc
+
 environment:
   image: aerysnan/kdva:latest
 
@@ -6,13 +13,14 @@ code:
   local_dir: $CONFIG_DIR
 
 data:
-  local_dir: nydata
+  local_dir: ~/dataset/nydata
+  remote_dir: KDVA/nydata
 
 jobs:
 - name: train_test_t0.4
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -r 1 -t 0.4
+  - python train_test_na.py -d ut_1 -r 1
 - name: train_test_t0.5
   sku: G1
   command:

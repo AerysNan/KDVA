@@ -16,11 +16,14 @@ from mmdet import __version__
 from mmdet.apis import set_random_seed, train_detector
 from mmdet.datasets import build_dataset
 from mmdet.models import build_detector
-from mmdet.utils import collect_env, get_root_logger
+from mmdet.utils import collect_env, get_root_logger, get_device
 
 
 def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dataset=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, no_test=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
     cfg = Config.fromfile(config)
+    # try to add device by Shiqi
+
+    cfg.device = get_device()
     if cfg_options is not None:
         cfg.merge_from_dict(cfg_options)
     # import modules from string list.
@@ -134,7 +137,7 @@ def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dat
         cfg,
         distributed=distributed,
         validate=(not no_validate),
-        test=(not no_test),
+        # test=(not no_test),
         timestamp=timestamp,
         meta=meta)
 

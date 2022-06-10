@@ -13,7 +13,7 @@ FPS = 30
 
 I_DATA_DIR = 'data'
 I_ANNO_DIR = 'data/annotations'
-I_MODEL_DIR = 'checkpoints'
+I_MODEL_DIR = 'models'
 
 O_MODEL_DIR = 'models'
 O_RESULT_DIR = 'results'
@@ -101,7 +101,6 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, threshold=None,
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser(description="train and test in a non-accumulative way")
     parser.add_argument("--dataset", "-d", help="dataset name", type=str, required=True)
     parser.add_argument("--train-rate", "-r", help="training rate", type=int, required=True)
