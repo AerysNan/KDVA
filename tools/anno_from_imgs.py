@@ -1,46 +1,22 @@
-# Copyright (c) OpenMMLab. All rights reserved.
-import argparse
-import os
-
-import mmcv
 from PIL import Image
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Convert images to coco format without annotations')
-    parser.add_argument('img_path', help='The root path of images')
-    parser.add_argument(
-        'classes', type=str, help='The text file name of storage class list')
-    parser.add_argument(
-        'out',
-        type=str,
-        help='The output annotation json file name, The save dir is in the '
-        'same directory as img_path')
-    parser.add_argument('--root', '-r', help='Data root', default=None)
-    parser.add_argument(
-        '-e',
-        '--exclude-extensions',
-        type=str,
-        nargs='+',
-        help='The suffix of images to be excluded, such as "png" and "bmp"')
-    args = parser.parse_args()
-    return args
+import argparse
+import mmcv
+import os
 
 
-def collect_image_infos(root, path, exclude_extensions=None):
+def collect_image_infos(path, exclude_extensions=None):
     img_infos = []
-
-    images_generator = os.listdir(os.path.join(root, path))
+    images_generator = os.listdir(path)
     images_generator.sort()
     for image_path in images_generator:
         if exclude_extensions is None or (
                 exclude_extensions is not None
                 and not image_path.lower().endswith(exclude_extensions)):
-            image_path = os.path.join(root, path, image_path)
-            img_pillow = Image.open(image_path)
+            # image_path = os.path.join(path, image_path)
+            img_pillow = Image.open(os.path.join(path, image_path))
             img_info = {
-                'filename': os.path.join(path, image_path),
+                'filename': os.path.normpath(image_path),
                 'width': img_pillow.width,
                 'height': img_pillow.height,
             }
@@ -74,30 +50,22 @@ def cvt_to_coco_json(img_infos, classes):
         image_item['width'] = int(img_dict['width'])
         coco['images'].append(image_item)
         image_set.add(file_name)
-
         image_id += 1
     return coco
 
 
-def main():
-    args = parse_args()
-    assert args.out.endswith(
-        'json'), 'The output file name must be json suffix'
-
-    # 1 load image list info
-    img_infos = collect_image_infos(args.root, args.img_path, args.exclude_extensions)
-
-    # 2 convert to coco format data
-    classes = mmcv.list_from_file(args.classes)
+def anno_from_imgs(img_path, classes, out, exclude_extensions=None, **_):
+    img_infos = collect_image_infos(img_path, exclude_extensions)
+    classes = mmcv.list_from_file(classes)
     coco_info = cvt_to_coco_json(img_infos, classes)
-
-    # 3 dump
-    save_dir = os.path.join(args.root, args.img_path, '..', 'annotations')
-    mmcv.mkdir_or_exist(save_dir)
-    save_path = os.path.join(save_dir, args.out)
-    mmcv.dump(coco_info, save_path)
-    print(f'save json file: {save_path}')
+    mmcv.dump(coco_info, out)
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Convert images to coco format without annotations')
+    parser.add_argument('img_path', help='The root path of images')
+    parser.add_argument('classes', type=str, help='The text file name of storage class list')
+    parser.add_argument('out', type=str, help='The output annotation json file name, The save dir is in the same directory as img_path')
+    parser.add_argument('-e', '--exclude-extensions', type=str,  nargs='+',  help='The suffix of images to be excluded, such as "png" and "bmp"')
+    args = parser.parse_args()
+    anno_from_imgs(**args.__dict__)

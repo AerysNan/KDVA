@@ -20,12 +20,12 @@ jobs:
 - name: train_test_t0.4
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -r 1
+  - python train_test_na.py -d ut_1 -t 0.4
 - name: train_test_t0.5
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -r 1 -t 0.5
+  - python train_test_na.py -d ut_1 -t 0.5
 - name: train_test_t0.6
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -r 1 -t 0.6
+  - python train_test_na.py -d ut_1 -t 0.6

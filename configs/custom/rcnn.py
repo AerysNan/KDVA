@@ -15,12 +15,20 @@ test_pipeline = [
             dict(type='Pad', size_divisor=32),
             dict(type='DefaultFormatBundle'),
             dict(type='Collect', keys=['img']),
-        ])
+        ]
+    )
 ]
 model = dict(
     test_cfg=dict(
         rcnn=dict(
-            score_thr=0.1,
-            nms=dict(type='nms', iou_threshold=0.5),
-            max_per_img=100)
-    ))
+            score_thr=0.1
+        )
+    )
+)
+
+data = dict(
+    samples_per_gpu=40,
+    test=dict(
+        samples_per_gpu=40,
+    )
+)

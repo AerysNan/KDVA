@@ -3,10 +3,10 @@ import pickle
 import argparse
 
 
-def anno_from_result(root, path, dataset, threshold, **_):
-    with open(path, 'rb') as f:
+def anno_from_result(base_file, result_file, threshold, output_file, ** _):
+    with open(result_file, 'rb') as f:
         results = pickle.load(f)
-    with open(f'{root}/data/annotations/{dataset}.base.json') as f:
+    with open(base_file) as f:
         data = json.load(f)
     data['annotations'] = []
     uid = 0
@@ -26,15 +26,15 @@ def anno_from_result(root, path, dataset, threshold, **_):
                 }
                 data["annotations"].append(annotation)
                 uid += 1
-    with open(f'{root}/data/annotations/{dataset}.golden.json', 'w') as f:
+    with open(output_file, 'w') as f:
         json.dump(data, f)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert result to annotation file')
-    parser.add_argument("--root", "-r", help="dataset root", type=str, required=True)
-    parser.add_argument('--path', '-p', help='result file path', type=str, required=True)
-    parser.add_argument('--dataset', '-d', help='dataset name', type=str, required=True)
+    parser.add_argument('--result-path', '-p', help='result file path', type=str, required=True)
+    parser.add_argument("--input-file", "-i", help="input directory", type=str, required=True)
+    parser.add_argument("--output-file", "-o", help="output directory", type=str, required=True)
     parser.add_argument('--threshold', '-t', type=float, default=0.5, help='confidence threshold for result filter')
     args = parser.parse_args()
     anno_from_result(**args.__dict__)

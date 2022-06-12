@@ -13,7 +13,10 @@ model = dict(
 
 # batch size 20
 data = dict(
-    samples_per_gpu=20,
+    samples_per_gpu=40,
+    test=dict(
+        samples_per_gpu=40,
+    )
 )
 
 # which pretrained model to start with

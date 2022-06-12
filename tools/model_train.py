@@ -19,10 +19,8 @@ from mmdet.models import build_detector
 from mmdet.utils import collect_env, get_root_logger, get_device
 
 
-def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dataset=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, no_test=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
-    cfg = Config.fromfile(config)
-    # try to add device by Shiqi
-
+def train(config, work_dir, train_anno_file=None, train_img_prefix=None, val_anno_file=None, val_img_prefix=None, load_from=None, max_epochs=None, resume_from=None, no_validate=True, gpus=None, gpu_ids=None, seed=None, deterministic=False, cfg_options=None, launcher='none',  **_):
+    cfg = Config.fromfile(config) if type(config) == str else config
     cfg.device = get_device()
     if cfg_options is not None:
         cfg.merge_from_dict(cfg_options)
@@ -40,8 +38,7 @@ def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dat
         cfg.work_dir = work_dir
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(config))[0])
+        cfg.work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(config))[0])
     if resume_from is not None:
         cfg.resume_from = resume_from
     if gpu_ids is not None:
@@ -97,19 +94,16 @@ def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dat
         train_cfg=cfg.get('train_cfg'),
         test_cfg=cfg.get('test_cfg'))
     model.init_weights()
-    if train_dataset is not None:
-        cfg.data.train.ann_file = f'{root}/data/annotations/{train_dataset}.golden.json'
-        cfg.data.train.img_prefix = root
-    if val_dataset is not None:
-        cfg.data.val.ann_file = f'{root}/data/annotations/{val_dataset}.golden.json'
-        cfg.data.val.img_prefix = root
-    else:
-        no_validate = True
-    if test_dataset is not None:
-        cfg.data.test.ann_file = f'{root}/data/annotations/{test_dataset}.gt.json'
-        cfg.data.test.img_prefix = root
-    else:
-        no_test = True
+    # overload configuration file
+    if train_anno_file is not None:
+        cfg.data.train.ann_file = train_anno_file
+    if train_img_prefix is not None:
+        cfg.data.train.img_prefix = train_img_prefix
+    if val_anno_file is not None:
+        cfg.data.val.ann_file = val_anno_file
+    if val_img_prefix is not None:
+        cfg.data.val.img_prefix = val_img_prefix
+    no_validate = no_validate or cfg.data.val.ann_file is None and cfg.data.val.img_prefix is None
     if load_from is not None:
         cfg.load_from = load_from
     if max_epochs is not None:
@@ -137,7 +131,6 @@ def train(config, work_dir, root, train_dataset=None, val_dataset=None, test_dat
         cfg,
         distributed=distributed,
         validate=(not no_validate),
-        # test=(not no_test),
         timestamp=timestamp,
         meta=meta)
 
@@ -146,59 +139,30 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a detector')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
-    parser.add_argument(
-        '--resume-from', help='the checkpoint file to resume from')
-    parser.add_argument(
-        '--no-validate',
-        action='store_true',
-        help='whether not to evaluate the checkpoint during training')
-    parser.add_argument(
-        '--no-test',
-        action='store_true',
-        help='whether not to evaluate the checkpoint during training')
-    group_gpus = parser.add_mutually_exclusive_group()
-    group_gpus.add_argument(
-        '--gpus',
-        type=int,
-        help='number of gpus to use '
-        '(only applicable to non-distributed training)')
-    group_gpus.add_argument(
-        '--gpu-ids',
-        type=int,
-        nargs='+',
-        help='ids of gpus to use '
-        '(only applicable to non-distributed training)')
+    parser.add_argument('--resume-from', help='the checkpoint file to resume from')
+    parser.add_argument('--no-validate', action='store_true', help='whether not to evaluate the checkpoint during training')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
-    parser.add_argument(
-        '--deterministic',
-        action='store_true',
-        help='whether to set deterministic options for CUDNN backend.')
-    parser.add_argument(
-        '--options',
-        nargs='+',
-        action=DictAction,
-        help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file (deprecate), '
-        'change to --cfg-options instead.')
-    parser.add_argument(
-        '--cfg-options',
-        nargs='+',
-        action=DictAction,
-        help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file. If the value to '
-        'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
-        'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
-        'Note that the quotation marks are necessary and that no white space '
-        'is allowed.')
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
-    parser.add_argument('--root', '-p', help='customized dataset path', type=str, default=None)
-    parser.add_argument('--train-dataset', help='customized train dataset name', type=str, default=None)
-    parser.add_argument('--val-dataset', help='customized validation dataset name', type=str, default=None)
-    parser.add_argument('--test-dataset', help='customized test dataset name', type=str, default=None)
+    parser.add_argument('--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
+    parser.add_argument('--options', nargs='+', action=DictAction,
+                        help='override some settings in the used config, the key-value pair '
+                        'in xxx=yyy format will be merged into config file (deprecate), '
+                        'change to --cfg-options instead.')
+    parser.add_argument('--cfg-options', nargs='+', action=DictAction,
+                        help='override some settings in the used config, the key-value pair '
+                        'in xxx=yyy format will be merged into config file. If the value to '
+                        'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
+                        'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
+                        'Note that the quotation marks are necessary and that no white space '
+                        'is allowed.')
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
+    group_gpus = parser.add_mutually_exclusive_group()
+    group_gpus.add_argument('--gpus', type=int, help='number of gpus to use (only applicable to non-distributed training)')
+    group_gpus.add_argument('--gpu-ids', type=int, nargs='+', help='ids of gpus to use (only applicable to non-distributed training)')
+    # custom arguments
+    parser.add_argument('--train-anno-file', '-ta', help='customized train annotation file', type=str, default=None)
+    parser.add_argument('--train-img-prefix', '-ti', help='customized train dataset path', type=str, default=None)
+    parser.add_argument('--val-anno-file', '-va', help='customized val annotation file', type=str, default=None)
+    parser.add_argument('--val-img-prefix', '-vi', help='customized val dataset path', type=str, default=None)
     parser.add_argument('--load-from', help='load from checkpoint file path', type=str, default=None)
     parser.add_argument('--max-epochs', help='maximum training epochs', type=int, default=None)
     parser.add_argument('--local_rank', type=int, default=0)
