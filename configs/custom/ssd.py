@@ -6,16 +6,15 @@ dataset_type = 'CocoDataset'
 
 model = dict(
     test_cfg=dict(
-        # only output bbox with confidence higher than 0.1
         score_thr=0.1
     ),
 )
 
-# batch size 20
+# batch size 60
 data = dict(
-    samples_per_gpu=40,
+    samples_per_gpu=20,
     test=dict(
-        samples_per_gpu=40,
+        samples_per_gpu=120,
     )
 )
 
@@ -24,7 +23,5 @@ load_from = 'checkpoints/ssd.pth'
 
 # maximum training epochs
 runner = dict(type='EpochBasedRunner', max_epochs=40)
-
-workflow = [('train', 1)]
 
 evaluation = dict(interval=200, metric='bbox', classwise=True)

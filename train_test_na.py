@@ -32,7 +32,7 @@ STUDENT_MODEL = 'ssd.pth'
 TEACHER_MODEL = 'r101.pth'
 
 
-def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, anno_file=None, cfg='configs/custom/ssd_base.py', eval=False, work_dir=None, no_test=True, **_):
+def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, anno_file=None, cfg='configs/custom/ssd.py', eval=False, work_dir=None, no_test=True, **_):
     if work_dir is None:
         work_dir = ''.join(random.choice(string.ascii_letters) for _ in range(20))
     print(f'Working directory set to {work_dir}!')
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     parser.add_argument("--val-rate", "-vr", help="validation rate", type=float, default=0.1)
     parser.add_argument("--anno-threshold", "-t", help="annotation threshold", type=float, default=0.5)
     parser.add_argument("--anno-file", "-f", help="annotation file", type=str, default=None)
-    parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd_base.py')
+    parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd.py')
     parser.add_argument("--eval", "-e", help="evalutaion or not", type=ast.literal_eval, default=False)
     parser.add_argument("--work-dir", "-w", help="working directory", type=str, default=None)
     parser.add_argument("--no-test", "-nt", help="no test", type=ast.literal_eval, default=True)
