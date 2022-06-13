@@ -7,8 +7,6 @@ from tools.anno_from_imgs import anno_from_imgs
 from tools.anno_from_result import anno_from_result
 
 import argparse
-import random
-import string
 import json
 import ast
 import os
@@ -32,18 +30,15 @@ STUDENT_MODEL = 'ssd.pth'
 TEACHER_MODEL = 'r101.pth'
 
 
-def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, anno_file=None, cfg='configs/custom/ssd_amtl.py', eval=False, work_dir=None, no_test=True, **_):
-    if work_dir is None:
-        work_dir = ''.join(random.choice(string.ascii_letters) for _ in range(20))
-    print(f'Working directory set to {work_dir}!')
+def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, anno_file=None, cfg='configs/custom/ssd_amlt.py', eval=False, no_test=True, **_):
     with open('cfg_data.json') as f:
         datasets = json.load(f)
     window_length = datasets[dataset]["size"] // n_window
 
-    o_anno_path = opj(os.environ['AMLT_OUTPUT_DIR'], work_dir, O_ANNO_DIR)
-    o_model_path = opj(os.environ['AMLT_OUTPUT_DIR'], work_dir, O_MODEL_DIR)
-    o_result_path = opj(os.environ['AMLT_OUTPUT_DIR'], work_dir, O_RESULT_DIR)
-    o_log_path = opj(os.environ['AMLT_OUTPUT_DIR'], work_dir, O_LOG_DIR)
+    o_anno_path = opj(os.environ['AMLT_OUTPUT_DIR'], O_ANNO_DIR)
+    o_model_path = opj(os.environ['AMLT_OUTPUT_DIR'], O_MODEL_DIR)
+    o_result_path = opj(os.environ['AMLT_OUTPUT_DIR'], O_RESULT_DIR)
+    o_log_path = opj(os.environ['AMLT_OUTPUT_DIR'], O_LOG_DIR)
 
     os.makedirs(o_anno_path, exist_ok=True)
     os.makedirs(o_model_path, exist_ok=True)
@@ -58,20 +53,19 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
         print('Annotation file provided, skip generation!')
         copyfile(opj(i_anno_path, anno_file), opj(o_anno_path, f'{dataset}.json'))
     else:
-        if not os.path.exists(opj(i_anno_path, f'{dataset}.b.json')):
-            print('Dataset description file not found, start generating...')
-            anno_from_imgs(
-                img_path=opj(i_data_path, dataset),
-                classes='classes.dat',
-                out=opj(i_anno_path, f'{dataset}.b.json')
-            )
-            print('Dataset description file generated!')
+        print('Start generating dataset description file...')
+        anno_from_imgs(
+            img_path=opj(i_data_path, dataset),
+            classes='classes.dat',
+            out=opj(o_anno_path, f'{dataset}.b.json')
+        )
+        print('Dataset description file generated!')
         print('Start generating annotation file...')
         test(
             config='configs/custom/rcnn_amlt.py',
             checkpoint=opj(i_model_path, TEACHER_MODEL),
             out=opj(o_log_path, f'{dataset}.r.pkl'),
-            anno_file=opj(i_anno_path, f'{dataset}.b.json'),
+            anno_file=opj(o_anno_path, f'{dataset}.b.json'),
             img_prefix=opj(i_data_path, dataset)
         )
         anno_from_result(
@@ -125,7 +119,6 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
                 img_prefix=opj(i_data_path, dataset)
             )
     if not eval:
-        print(f'Job finished! Just a reminder that working directory is {work_dir}')
         return
     print('start evaluation...')
 
@@ -140,7 +133,6 @@ if __name__ == '__main__':
     parser.add_argument("--anno-file", "-f", help="annotation file", type=str, default=None)
     parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd_amlt.py')
     parser.add_argument("--eval", "-e", help="evalutaion or not", type=ast.literal_eval, default=False)
-    parser.add_argument("--work-dir", "-w", help="working directory", type=str, default=None)
     parser.add_argument("--no-test", "-nt", help="no test", type=ast.literal_eval, default=True)
     args = parser.parse_args()
     train_test_na(**args.__dict__)
