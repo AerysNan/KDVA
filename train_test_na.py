@@ -30,7 +30,7 @@ STUDENT_MODEL = 'ssd.pth'
 TEACHER_MODEL = 'r101.pth'
 
 
-def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, anno_file=None, cfg='configs/custom/ssd_amlt.py', eval=False, no_test=True, **_):
+def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, base_file=None, anno_file=None, cfg='configs/custom/ssd_amlt.py', eval=False, no_test=True, **_):
     with open('cfg_data.json') as f:
         datasets = json.load(f)
     window_length = datasets[dataset]["size"] // n_window
@@ -53,13 +53,17 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
         print('Annotation file provided, skip generation!')
         copyfile(opj(i_anno_path, anno_file), opj(o_anno_path, f'{dataset}.json'))
     else:
-        print('Start generating dataset description file...')
-        anno_from_imgs(
-            img_path=opj(i_data_path, dataset),
-            classes='classes.dat',
-            out=opj(o_anno_path, f'{dataset}.b.json')
-        )
-        print('Dataset description file generated!')
+        if base_file is not None:
+            print('Dataset description file provided, skip generation!')
+            copyfile(opj(i_anno_path, base_file), opj(o_anno_path, f'{dataset}.b.json'))
+        else:
+            print('Start generating dataset description file...')
+            anno_from_imgs(
+                img_path=opj(i_data_path, dataset),
+                classes='classes.dat',
+                out=opj(o_anno_path, f'{dataset}.b.json')
+            )
+            print('Dataset description file generated!')
         print('Start generating annotation file...')
         test(
             config='configs/custom/rcnn_amlt.py',
@@ -130,7 +134,8 @@ if __name__ == '__main__':
     parser.add_argument("--train-rate", "-tr", help="training rate", type=int, default=1)
     parser.add_argument("--val-rate", "-vr", help="validation rate", type=float, default=0.1)
     parser.add_argument("--anno-threshold", "-t", help="annotation threshold", type=float, default=0.5)
-    parser.add_argument("--anno-file", "-f", help="annotation file", type=str, default=None)
+    parser.add_argument("--anno-file", "-af", help="annotation file", type=str, default=None)
+    parser.add_argument("--base-file", "-bf", help="base file", type=str, default=None)
     parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd_amlt.py')
     parser.add_argument("--eval", "-e", help="evalutaion or not", type=ast.literal_eval, default=False)
     parser.add_argument("--no-test", "-nt", help="no test", type=ast.literal_eval, default=True)
