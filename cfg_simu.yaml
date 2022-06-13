@@ -14,18 +14,18 @@ code:
 
 data:
   local_dir: ~/dataset/nydata
-  remote_dir: KDVA/nydata
+  remote_dir: dataset/KDVA/nydata
 
 jobs:
-- name: train_test_t0.4
+- name: kdva_train_test_t0.4
   sku: G1
   command:
   - python train_test_na.py -d ut_1 -t 0.4
-- name: train_test_t0.5
+- name: kdva_train_test_t0.5
   sku: G1
   command:
   - python train_test_na.py -d ut_1 -t 0.5
-- name: train_test_t0.6
+- name: kdva_train_test_t0.6
   sku: G1
   command:
   - python train_test_na.py -d ut_1 -t 0.6
