@@ -1,8 +1,40 @@
-import ast
-from shutil import copyfile
 import os
+import ast
 import json
 import argparse
+
+
+def merge_traces(input_file, output_file):
+    image_count, annotation_id, image_id = 0, 0, 0
+    output_annotation = {
+        'images': [],
+        'annotations': [],
+        'categories': [],
+    }
+    datasets = []
+    with open(input_file) as f:
+        for line in f:
+            datasets.append(line[:-1])
+
+    for dataset in datasets:
+        id2id = {}
+        with open(dataset) as f:
+            dataset_annotation = json.load(f)
+        image_count += len(dataset_annotation['images'])
+        for image in dataset_annotation['images']:
+            id2id[image['id']] = image_id
+            image['id'] = image_id
+            image_id += 1
+            output_annotation['images'].append(image)
+        for annotation in dataset_annotation['annotations']:
+            annotation['image_id'] = id2id[annotation['image_id']]
+            annotation['id'] = annotation_id
+            annotation_id += 1
+            output_annotation['annotations'].append(annotation)
+        output_annotation['categories'] = dataset_annotation['categories']
+
+    with open(f'{args.root}/data/annotations/{args.output}.{"gt" if args.gt else "golden"}.json', 'w') as f:
+        json.dump(output_annotation, f)
 
 
 parser = argparse.ArgumentParser(description='Merge traces')
@@ -12,60 +44,4 @@ parser.add_argument('--input', '-i', type=str, required=True, help='Input traces
 parser.add_argument('--gt', '-g', type=ast.literal_eval, default=True, help='Generate groundtruth file')
 parser.add_argument('--annotation-only', '-a', type=ast.literal_eval, default=False, help='Only generate annotation file for merged dataset')
 
-args = parser.parse_args()
-
-image_count, annotation_id, image_id = 0, 0, 0
-
-output_annotation = {
-    'images': [],
-    'annotations': [],
-    'categories': [],
-    'ignored_regions': []
-}
-
-datasets = []
-
-f = open(args.input)
-for line in f:
-    datasets.append(line[:-1])
-f.close()
-
-annotation_only = args.annotation_only
-
-if not annotation_only:
-    os.makedirs(f'{args.root}/data/{args.output}', exist_ok=True)
-
-
-for i, dataset in enumerate(datasets):
-    d = {}
-    with open(f'{args.root}/data/annotations/{dataset}.{"gt" if args.gt else "golden"}.json') as f:
-        dataset_annotation = json.load(f)
-    if not annotation_only:
-        files = os.listdir(f'{args.root}/data/{dataset}')
-        files.sort()
-        for file in files:
-            copyfile(f'{args.root}/data/{dataset}/{file}', f'{args.root}/data/{args.output}/{image_count:06d}.jpg')
-            image_count += 1
-    else:
-        image_count += len(dataset_annotation['images'])
-    for j, image in enumerate(dataset_annotation['images']):
-        d[image['id']] = image_id
-        image['id'] = image_id
-        image_id += 1
-        if not annotation_only:
-            image['file_name'] = f'./data/{args.output}/{image["id"]:06d}.jpg'
-        output_annotation['images'].append(image)
-    for annotation in dataset_annotation['annotations']:
-        annotation['image_id'] = d[annotation['image_id']]
-        annotation['id'] = annotation_id
-        annotation_id += 1
-        output_annotation['annotations'].append(annotation)
-    output_annotation['categories'] = dataset_annotation['categories']
-    if 'ignored_regions' in dataset_annotation:
-        for region in dataset_annotation['ignored_regions']:
-            region['begin'] = d[region['begin']]
-            region['end'] = d[region['end'] - 1] + 1
-            output_annotation['ignored_regions'].append(region)
-
-with open(f'{args.root}/data/annotations/{args.output}.{"gt" if args.gt else "golden"}.json', 'w') as f:
-    json.dump(output_annotation, f)
+# args = parser.parse_args()

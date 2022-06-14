@@ -20,12 +20,12 @@ jobs:
 - name: kdva_train_test_t0.4
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -t 0.4 -bf ut_1.base.json
+  - python train_test_na.py -d ut_1 -t 0.4 -bf ut_1.b.json
 - name: kdva_train_test_t0.5
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -t 0.5 -bf ut_1.base.json
+  - python train_test_na.py -d ut_1 -t 0.5 -bf ut_1.b.json
 - name: kdva_train_test_t0.6
   sku: G1
   command:
-  - python train_test_na.py -d ut_1 -t 0.6 -bf ut_1.base.json
+  - python train_test_na.py -d ut_1 -t 0.6 -bf ut_1.b.json

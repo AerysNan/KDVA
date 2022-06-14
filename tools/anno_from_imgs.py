@@ -5,7 +5,7 @@ import mmcv
 import os
 
 
-def collect_image_infos(path, exclude_extensions=None):
+def collect_image_infos(path, prefix, exclude_extensions=None):
     img_infos = []
     images_generator = os.listdir(path)
     images_generator.sort()
@@ -16,7 +16,7 @@ def collect_image_infos(path, exclude_extensions=None):
             # image_path = os.path.join(path, image_path)
             img_pillow = Image.open(os.path.join(path, image_path))
             img_info = {
-                'filename': os.path.normpath(image_path),
+                'filename': os.path.normpath(os.path.join(prefix, image_path)),
                 'width': img_pillow.width,
                 'height': img_pillow.height,
             }
@@ -54,8 +54,8 @@ def cvt_to_coco_json(img_infos, classes):
     return coco
 
 
-def anno_from_imgs(img_path, classes, out, exclude_extensions=None, **_):
-    img_infos = collect_image_infos(img_path, exclude_extensions)
+def anno_from_imgs(img_path, classes, prefix, out, exclude_extensions=None, **_):
+    img_infos = collect_image_infos(img_path, prefix, exclude_extensions)
     classes = mmcv.list_from_file(classes)
     coco_info = cvt_to_coco_json(img_infos, classes)
     mmcv.dump(coco_info, out)
@@ -66,6 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('img_path', help='The root path of images')
     parser.add_argument('classes', type=str, help='The text file name of storage class list')
     parser.add_argument('out', type=str, help='The output annotation json file name, The save dir is in the same directory as img_path')
-    parser.add_argument('-e', '--exclude-extensions', type=str,  nargs='+',  help='The suffix of images to be excluded, such as "png" and "bmp"')
+    parser.add_argument('--prefix', '-p', type=str, help='Image path prefix', default='')
+    parser.add_argument('-e', '--exclude-extensions', type=str, nargs='+',  help='The suffix of images to be excluded, such as "png" and "bmp"')
     args = parser.parse_args()
     anno_from_imgs(**args.__dict__)

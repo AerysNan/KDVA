@@ -61,7 +61,8 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
             anno_from_imgs(
                 img_path=opj(i_data_path, dataset),
                 classes='classes.dat',
-                out=opj(o_anno_path, f'{dataset}.b.json')
+                out=opj(o_anno_path, f'{dataset}.b.json'),
+                prefix=dataset
             )
             print('Dataset description file generated!')
         print('Start generating annotation file...')
@@ -70,7 +71,7 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
             checkpoint=opj(i_model_path, TEACHER_MODEL),
             out=opj(o_log_path, f'{dataset}.r.pkl'),
             anno_file=opj(o_anno_path, f'{dataset}.b.json'),
-            img_prefix=opj(i_data_path, dataset)
+            img_prefix=i_data_path
         )
         anno_from_result(
             input_file=opj(i_anno_path, f'{dataset}.b.json'),
@@ -99,7 +100,7 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
             checkpoint=opj(o_model_path, '0.pth'),
             out=opj(o_result_path, '00.pkl'),
             anno_file=opj(o_anno_path, TEST_DIR, f'{dataset}.{0}'),
-            img_prefix=opj(i_data_path, dataset)
+            img_prefix=i_data_path
         )
     for epoch in range(1, n_window):
         print(f'Train epoch {epoch}')
@@ -107,7 +108,7 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
             config=cfg,
             work_dir=o_log_path,
             train_anno_file=opj(o_anno_path, TRAIN_DIR, f'{dataset}.{epoch - 1}'),
-            train_img_prefix=opj(i_data_path, dataset),
+            train_img_prefix=i_data_path,
             seed=0,
             deterministic=True,
             load_from=opj(i_model_path, STUDENT_MODEL)
@@ -120,7 +121,7 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
                 checkpoint=opj(o_model_path, f'{epoch}.pth'),
                 out=opj(o_result_path, f'{epoch:02d}.pkl'),
                 anno_file=opj(o_anno_path, TEST_DIR, f'{dataset}.{epoch}'),
-                img_prefix=opj(i_data_path, dataset)
+                img_prefix=i_data_path
             )
     if not eval:
         return
