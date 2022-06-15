@@ -3,6 +3,6 @@ _base_ = './ssd.py'
 data = dict(
     samples_per_gpu=60,
     test=dict(
-        samples_per_gpu=360,
+        samples_per_gpu=320,
     )
 )

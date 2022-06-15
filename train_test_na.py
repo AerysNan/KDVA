@@ -143,7 +143,7 @@ if __name__ == '__main__':
     parser.add_argument("--anno-threshold", "-t", help="annotation threshold", type=float, default=0.5)
     parser.add_argument("--anno-file", "-af", help="annotation file", type=str, default=None)
     parser.add_argument("--base-file", "-bf", help="base file", type=str, default=None)
-    parser.add_argument("--base-file", "-rf", help="result file", type=str, default=None)
+    parser.add_argument("--result-file", "-rf", help="result file", type=str, default=None)
     parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd_amlt.py')
     parser.add_argument("--eval", "-e", help="evalutaion or not", type=ast.literal_eval, default=False)
     parser.add_argument("--no-test", "-nt", help="no test", type=ast.literal_eval, default=True)
