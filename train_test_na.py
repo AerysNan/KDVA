@@ -30,7 +30,7 @@ STUDENT_MODEL = 'ssd.pth'
 TEACHER_MODEL = 'r101.pth'
 
 
-def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, base_file=None, anno_file=None, cfg='configs/custom/ssd_amlt.py', eval=False, no_test=True, **_):
+def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=0.5, base_file=None, result_file=None, anno_file=None, cfg='configs/custom/ssd_amlt.py', eval=False, no_test=True, **_):
     with open('cfg_data.json') as f:
         datasets = json.load(f)
     window_length = datasets[dataset]["size"] // n_window
@@ -65,17 +65,23 @@ def train_test_na(dataset, n_window, train_rate=1, val_rate=0.1, anno_threshold=
                 prefix=dataset
             )
             print('Dataset description file generated!')
+        if result_file is not None:
+            print('Expert model inference result provided, skip inference!')
+            copyfile(opj(i_anno_path, result_file), opj(o_log_path, f'{dataset}.r.pkl'))
+        else:
+            print('Start inferencing with expert model...')
+            test(
+                config='configs/custom/rcnn_amlt.py',
+                checkpoint=opj(i_model_path, TEACHER_MODEL),
+                out=opj(o_log_path, f'{dataset}.r.pkl'),
+                anno_file=opj(o_anno_path, f'{dataset}.b.json'),
+                img_prefix=i_data_path
+            )
+            print('Inference finished!')
         print('Start generating annotation file...')
-        test(
-            config='configs/custom/rcnn_amlt.py',
-            checkpoint=opj(i_model_path, TEACHER_MODEL),
-            out=opj(o_log_path, f'{dataset}.r.pkl'),
-            anno_file=opj(o_anno_path, f'{dataset}.b.json'),
-            img_prefix=i_data_path
-        )
         anno_from_result(
-            input_file=opj(i_anno_path, f'{dataset}.b.json'),
-            result_path=opj(o_log_path, f'{dataset}.r.pkl'),
+            base_file=opj(i_anno_path, f'{dataset}.b.json'),
+            result_file=opj(o_log_path, f'{dataset}.r.pkl'),
             output_file=opj(o_anno_path, f'{dataset}.json'),
             threshold=anno_threshold
         )
@@ -137,6 +143,7 @@ if __name__ == '__main__':
     parser.add_argument("--anno-threshold", "-t", help="annotation threshold", type=float, default=0.5)
     parser.add_argument("--anno-file", "-af", help="annotation file", type=str, default=None)
     parser.add_argument("--base-file", "-bf", help="base file", type=str, default=None)
+    parser.add_argument("--base-file", "-rf", help="result file", type=str, default=None)
     parser.add_argument("--cfg", "-c", help="train and test configuration", type=str, default='configs/custom/ssd_amlt.py')
     parser.add_argument("--eval", "-e", help="evalutaion or not", type=ast.literal_eval, default=False)
     parser.add_argument("--no-test", "-nt", help="no test", type=ast.literal_eval, default=True)
