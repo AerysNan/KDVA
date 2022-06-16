@@ -1,5 +1,5 @@
 _base_ = [
-    '../base/ssdlite_mobilenetv2_scratch_600e_coco.py'
+    '../base/ssd_base.py'
 ]
 
 dataset_type = 'CocoDataset'
@@ -10,11 +10,11 @@ model = dict(
     ),
 )
 
-# batch size 60
+# batch size 20
 data = dict(
     samples_per_gpu=20,
     test=dict(
-        samples_per_gpu=120,
+        samples_per_gpu=80,
     )
 )
 

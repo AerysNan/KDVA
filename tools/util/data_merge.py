@@ -1,5 +1,3 @@
-import os
-import ast
 import json
 import argparse
 
@@ -12,9 +10,12 @@ def merge_traces(input_file, output_file, **_):
         'categories': [],
     }
     datasets = []
-    with open(input_file) as f:
-        for line in f:
-            datasets.append(line[:-1])
+    if type(input_file) == list:
+        datasets = input_file
+    else:
+        with open(input_file) as f:
+            for line in f:
+                datasets.append(line[:-1])
     for dataset in datasets:
         id2id = {}
         with open(dataset) as f:

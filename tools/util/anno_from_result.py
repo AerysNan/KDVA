@@ -32,8 +32,8 @@ def anno_from_result(base_file, result_file, threshold, output_file, ** _):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert result to annotation file')
-    parser.add_argument('--result-path', '-p', help='result file path', type=str, required=True)
-    parser.add_argument("--input-file", "-i", help="input directory", type=str, required=True)
+    parser.add_argument('--result-file', '-p', help='result file path', type=str, required=True)
+    parser.add_argument("--base-file", "-b", help="base file", type=str, required=True)
     parser.add_argument("--output-file", "-o", help="output directory", type=str, required=True)
     parser.add_argument('--threshold', '-t', type=float, default=0.5, help='confidence threshold for result filter')
     args = parser.parse_args()

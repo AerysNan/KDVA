@@ -7,16 +7,16 @@ VAL_DIR = 'val'
 TEST_DIR = 'test'
 
 
-def generate_sample_position(sample_count, sample_interval, offset=0):
-    sample_win, total = [1 for _ in range(sample_count)], sample_count
-    while total < sample_interval:
-        for i in range(sample_count):
+def generate_sample_position(n_samples, n_frames, offset=0):
+    sample_win, total = [1 for _ in range(n_samples)], n_samples
+    while total < n_frames:
+        for i in range(n_samples):
             sample_win[i] += 1
             total += 1
-            if total == sample_interval:
+            if total == n_frames:
                 break
     pos = [offset]
-    for i in range(sample_count - 1):
+    for i in range(n_samples - 1):
         pos.append(pos[-1] + sample_win[i])
     return pos
 
@@ -60,16 +60,16 @@ def split_dataset(input_file, output_dir, output_name, size, train_rate=None, va
         if val_size is not None and (val_size > 0 and offset < val_size or val_size < 0 and offset - size >= val_size):
             annotation_val_list[epoch]["annotations"].append(annotation)
 
+    os.makedirs(os.path.join(output_dir, TRAIN_DIR), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, TEST_DIR), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, VAL_DIR), exist_ok=True)
     for epoch in range(epoch_count):
         if train_rate is not None:
-            os.makedirs(os.path.join(output_dir, TRAIN_DIR), exist_ok=True)
             with open(os.path.join(output_dir, TRAIN_DIR, f'{output_name}.{epoch}'), "w") as f:
                 json.dump(annotation_train_list[epoch], f)
         if val_rate is not None or val_size is not None:
-            os.makedirs(os.path.join(output_dir, VAL_DIR), exist_ok=True)
             with open(os.path.join(output_dir, VAL_DIR, f'{output_name}.{epoch}'), "w") as f:
                 json.dump(annotation_val_list[epoch], f)
-        os.makedirs(os.path.join(output_dir, TEST_DIR), exist_ok=True)
         with open(os.path.join(output_dir, TEST_DIR, f'{output_name}.{epoch}'), "w") as f:
             json.dump(annotation_test_list[epoch], f)
 
