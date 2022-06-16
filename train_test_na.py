@@ -2,7 +2,7 @@ from shutil import copyfile
 from os.path import join as opj
 from tools.model_test import test
 from tools.model_train import train
-from tools.split_dataset import split_dataset
+from tools.data_split import split_dataset
 from tools.anno_from_imgs import anno_from_imgs
 from tools.anno_from_result import anno_from_result
 

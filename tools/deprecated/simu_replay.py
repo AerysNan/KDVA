@@ -6,7 +6,7 @@ import numpy as np
 import pickle
 import argparse
 
-from replay_trace import replay_trace
+from tools.deprecated.replay_trace import replay_trace
 from multiprocessing import Pool
 
 results = None

@@ -4,8 +4,8 @@ import json
 import argparse
 
 
-def merge_traces(input_file, output_file):
-    image_count, annotation_id, image_id = 0, 0, 0
+def merge_traces(input_file, output_file, **_):
+    annotation_id, image_id = 0, 0
     output_annotation = {
         'images': [],
         'annotations': [],
@@ -15,12 +15,10 @@ def merge_traces(input_file, output_file):
     with open(input_file) as f:
         for line in f:
             datasets.append(line[:-1])
-
     for dataset in datasets:
         id2id = {}
         with open(dataset) as f:
             dataset_annotation = json.load(f)
-        image_count += len(dataset_annotation['images'])
         for image in dataset_annotation['images']:
             id2id[image['id']] = image_id
             image['id'] = image_id
@@ -32,16 +30,13 @@ def merge_traces(input_file, output_file):
             annotation_id += 1
             output_annotation['annotations'].append(annotation)
         output_annotation['categories'] = dataset_annotation['categories']
-
-    with open(f'{args.root}/data/annotations/{args.output}.{"gt" if args.gt else "golden"}.json', 'w') as f:
+    with open(output_file, 'w') as f:
         json.dump(output_annotation, f)
 
 
-parser = argparse.ArgumentParser(description='Merge traces')
-parser.add_argument('--root', '-r', type=str, required=True, help='Data root')
-parser.add_argument('--output', '-o', type=str, required=True, help='Output trace name')
-parser.add_argument('--input', '-i', type=str, required=True, help='Input traces file')
-parser.add_argument('--gt', '-g', type=ast.literal_eval, default=True, help='Generate groundtruth file')
-parser.add_argument('--annotation-only', '-a', type=ast.literal_eval, default=False, help='Only generate annotation file for merged dataset')
-
-# args = parser.parse_args()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Merge traces')
+    parser.add_argument('--input-file', '-if', type=str, required=True, help='Input dataset file, each line contains the path to a dataset annotation file')
+    parser.add_argument('--output-file', '-of', type=str, required=True, help='Output dataset file')
+    args = parser.parse_args()
+    merge_traces(**args.__dict__)

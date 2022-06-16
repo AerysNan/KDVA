@@ -7,7 +7,7 @@ import numpy as np
 import pickle
 import argparse
 
-from evaluate_from_file import evaluate_from_file
+from tools.result_evaluate import evaluate_from_file
 from multiprocessing import Pool
 
 results = None

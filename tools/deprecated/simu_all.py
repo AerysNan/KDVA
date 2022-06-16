@@ -8,7 +8,7 @@ import pickle
 import argparse
 
 from multiprocessing import Pool
-from evaluate_from_file import generate_sample_position, evaluate_from_file
+from tools.result_evaluate import generate_sample_position, evaluate_from_file
 
 ORIGINAL_FRAMERATE = 60
 
