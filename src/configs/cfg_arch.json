@@ -1,8 +1,0 @@
-{
-  "n_edges": 2,
-  "n_sources_per_edge": 6,
-  "edge_resource_bottleneck_fps": 60,
-  "uplink_resource_bottleneck_fps": 100,
-  "downlink_resource_bottleneck_mbps": 96,
-  "model_size_mb": 160
-}

@@ -2,134 +2,140 @@ package edge
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"io/ioutil"
 	"os"
-	"sort"
+	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	pc "vakd/proto/cloud"
 	pe "vakd/proto/edge"
 	pw "vakd/proto/worker"
 	"vakd/util"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Frame struct {
-	index  int
-	source int
+	Index  int
+	Source int
 }
 
-type Record struct {
-	lastReceivedAcc  int
-	receivedAcc      int
-	lastProcessedAcc int
-	processedAcc     int
-	lastUploadedAcc  int
-	uploadedAcc      int
-}
-
-type Config struct {
-	orgFPS    int
-	infFPS    int
-	retFPS    int
-	infSample []int
-	retSample []int
+type MonitorRecord struct {
+	LastReceived  int
+	Received      int
+	LastProcessed int
+	Processed     int
+	LastUploaded  int
+	Uploaded      int
 }
 
 type Source struct {
-	m  sync.RWMutex
-	id int
+	ID int
 
-	config Config
-	record Record
+	Config util.SourceConfig
+	record MonitorRecord
 
-	status      int
-	version     int
-	dataset     string
-	lastMonitor time.Time
-	infQ        chan *Frame
-	retQ        chan *Frame
-	closeCh     chan struct{}
-	updateCh    chan struct{}
+	Version     int
+	Dataset     string
+	LastMonitor time.Time
+
+	infQ     chan *Frame
+	retQ     chan *Frame
+	closeCh  chan struct{}
+	updateCh chan struct{}
 }
 
 type Edge struct {
 	pe.EdgeForSourceServer
 	pe.EdgeForCloudServer
+	ID      int
+	Address string
+	WorkDir string
+	Config  util.SimulationConfig
+	Sources map[int]*Source
+
 	m            sync.RWMutex
-	id           int
-	address      string
-	workDir      string
-	sources      map[int]*Source
-	cMonitor     *MockComputationMonitor
-	nMonitor     *MockNetworkMonitor
 	workerClient pw.WorkerForEdgeClient
 	cloudClient  pc.CloudForEdgeClient
 }
 
-func NewEdge(id int, address string, workDir string, workerClient pw.WorkerForEdgeClient, cloudClient pc.CloudForEdgeClient) (*Edge, error) {
-	edge := &Edge{
+func NewEdge(id int, address string, workDir string, config string, workerClient pw.WorkerForEdgeClient, cloudClient pc.CloudForEdgeClient) (*Edge, error) {
+	// create edge
+	e := &Edge{
 		m:            sync.RWMutex{},
-		id:           id,
-		address:      address,
-		sources:      make(map[int]*Source),
+		ID:           id,
+		Address:      address,
+		Sources:      make(map[int]*Source),
 		workerClient: workerClient,
 		cloudClient:  cloudClient,
-		cMonitor:     NewMockComputationMonitor(util.COMPUTATION_BOTTLENECK),
-		nMonitor:     NewMockNetworkMonitor(util.UPLINK_NETWORK_BOTTLENECK),
 	}
-	_, err := cloudClient.AddEdge(context.Background(), &pc.AddEdgeRequest{
-		Address: address,
-	})
+	// read simulation config
+	file, err := os.Open(config)
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(bytes, &e.Config); err != nil {
+		return nil, err
+	}
+	// connect to worker
 	_, err = workerClient.InitWorker(context.Background(), &pw.InitWorkerRequest{
-		WorkDir: edge.workDir,
+		WorkDir: e.WorkDir,
 	})
 	if err != nil {
 		return nil, err
 	}
-	edge.workDir = workDir
-	go edge.monitorLoop()
-	go edge.retrainLoop()
-	go edge.inferenceLoop()
-	return edge, nil
+	e.WorkDir = workDir
+	return e, nil
+}
+
+func (e *Edge) Start() {
+	// connect to cloud
+	sources := make([]int64, 0)
+	for id := range e.Sources {
+		sources = append(sources, int64(id))
+	}
+	if _, err := e.cloudClient.AddEdge(context.Background(), &pc.AddEdgeRequest{
+		Address: e.Address,
+		Edge:    int64(e.ID),
+		Sources: sources,
+	}); err != nil {
+		logrus.WithError(err).Error("Failed to connect to cloud")
+	} else {
+		logrus.Info("Edge started")
+	}
+	for _, s := range e.Sources {
+		s.LastMonitor = time.Now()
+	}
+	go e.monitorLoop()
+	go e.retrainLoop()
+	go e.inferenceLoop()
 }
 
 func (e *Edge) monitorLoop() {
 	timer := time.NewTicker(util.MONITOR_INTERVAL)
 	for {
 		func() {
-			infT, retT, count := 0.0, 0.0, 0
-			ids, delay := make([]int, 0), make(map[int]int)
-			e.m.RLock()
-			for id, source := range e.sources {
-				if source.status != util.SOURCE_STATUS_CLOSED {
-					ids = append(ids, id)
-				}
-			}
-			e.m.RUnlock()
-			for _, id := range ids {
-				source := e.sources[id]
+			totalInferenceFPS, totalUploadFPS, count := 0.0, 0.0, 0
+			for _, source := range e.Sources {
 				count++
-				infFPS := float64(source.record.processedAcc-source.record.lastProcessedAcc) / time.Since(source.lastMonitor).Seconds()
-				retFPS := float64(source.record.uploadedAcc-source.record.lastUploadedAcc) / time.Since(source.lastMonitor).Seconds()
-				delay[id] = len(source.infQ)
-				source.m.Lock()
-				source.record.lastProcessedAcc = source.record.processedAcc
-				source.record.lastReceivedAcc = source.record.receivedAcc
-				source.record.lastUploadedAcc = source.record.uploadedAcc
-				source.m.Unlock()
-				infT += infFPS
-				retT += retFPS
-				source.lastMonitor = time.Now()
+				infFPS := float64(source.record.Processed-source.record.LastProcessed) / time.Since(source.LastMonitor).Seconds()
+				retFPS := float64(source.record.Uploaded-source.record.LastUploaded) / time.Since(source.LastMonitor).Seconds()
+				source.record.LastProcessed = source.record.Processed
+				source.record.LastReceived = source.record.Received
+				source.record.LastUploaded = source.record.Uploaded
+				totalInferenceFPS += infFPS
+				totalUploadFPS += retFPS
+				source.LastMonitor = time.Now()
 			}
 			if count > 0 {
-				logrus.Infof("S: %d; I: %.2f; U: %.2f; D: %v", count, infT, retT, delay)
+				logrus.Infof("Sources: %d, inference: %.2f FPS, upload: %.2f FPS", count, totalInferenceFPS, totalUploadFPS)
 			}
 		}()
 		<-timer.C
@@ -138,64 +144,50 @@ func (e *Edge) monitorLoop() {
 
 func (e *Edge) retrainLoop() {
 	for {
-		ids, weightMap := make([]int, 0), make(map[int]int)
+		weightMap, weightList := make(map[int]int), make([]int, 0)
 		maxFPS := 0
 		e.m.RLock()
-		for id, source := range e.sources {
-			if len(source.infQ) == 0 && source.status == util.SOURCE_STATUS_DISCONNECTED {
-				source.status = util.SOURCE_STATUS_CLOSED
-				source.closeCh <- struct{}{}
+		for id, source := range e.Sources {
+			if source.Config.UploadingFramerate > maxFPS {
+				maxFPS = source.Config.UploadingFramerate
 			}
-			if source.status == util.SOURCE_STATUS_CLOSED {
-				continue
-			}
-			ids = append(ids, id)
-			source.m.RLock()
-			if source.config.retFPS > maxFPS {
-				maxFPS = source.config.retFPS
-			}
-			weightMap[id] = source.config.retFPS
-			source.m.RUnlock()
+			weightMap[id] = source.Config.UploadingFramerate
+			weightList = append(weightList, source.Config.UploadingFramerate)
 		}
 		e.m.RUnlock()
-		if len(ids) == 0 {
-			continue
-		}
-		sort.Ints(ids)
-		gcd := util.Reduce(weightMap)
+		gcd := util.GCDList(weightList)
 		for w := 1; w <= maxFPS/gcd; w++ {
-			for _, id := range ids {
-				source := e.sources[id]
-				if weightMap[id] < w || len(source.retQ) == 0 {
+			for id, s := range e.Sources {
+				if weightMap[id] < w*gcd || len(s.retQ) == 0 {
 					continue
 				}
 				timer := time.NewTimer(util.TIMEOUT_DURATION)
 				select {
-				case frame := <-source.retQ:
-					logrus.Debugf("Upload frame %d of source %d", frame.index, frame.source)
-					path := fmt.Sprintf("%s/%s/%s", e.workDir, util.FrameDir, util.EdgeGetFrameName(int(frame.source), int(frame.index)))
+				case frame := <-s.retQ:
+					logrus.Debugf("Upload frame %d of source %d", frame.Index, frame.Source)
+					path := filepath.Join(e.WorkDir, util.FrameDir, util.EdgeGetFrameName(int(frame.Source), int(frame.Index)))
 					file, err := os.Open(path)
 					if err != nil {
-						logrus.WithError(err).Errorf("Failed to open frame %d of source %d", frame.index, frame.source)
+						logrus.WithError(err).Errorf("Failed to open frame %d of source %d", frame.Index, frame.Source)
 						continue
 					}
 					content, err := ioutil.ReadAll(file)
 					if err != nil {
-						logrus.WithError(err).Errorf("Failed to read frame %d of source %d", frame.index, frame.source)
+						logrus.WithError(err).Errorf("Failed to read frame %d of source %d", frame.Index, frame.Source)
 						file.Close()
 						continue
 					}
 					file.Close()
 					_, err = e.cloudClient.SendFrame(context.Background(), &pc.EdgeSendFrameRequest{
-						Edge:    int64(e.id),
-						Source:  int64(frame.source),
-						Index:   int64(frame.index),
+						Edge:    int64(e.ID),
+						Source:  int64(frame.Source),
+						Index:   int64(frame.Index),
 						Content: content,
 					})
 					if err != nil {
-						logrus.WithError(err).Errorf("Failed to upload frame %d of source %d", frame.index, frame.source)
+						logrus.WithError(err).Errorf("Failed to upload frame %d of source %d", frame.Index, frame.Source)
 					}
-					source.record.uploadedAcc++
+					s.record.Uploaded++
 				case <-timer.C:
 					continue
 				}
@@ -206,50 +198,36 @@ func (e *Edge) retrainLoop() {
 
 func (e *Edge) inferenceLoop() {
 	for {
-		ids, weightMap := make([]int, 0), make(map[int]int)
+		weightMap, weightList := make(map[int]int), make([]int, 0)
 		maxFPS := 0
 		e.m.RLock()
-		for id, source := range e.sources {
-			if len(source.infQ) == 0 && source.status == util.SOURCE_STATUS_DISCONNECTED {
-				source.status = util.SOURCE_STATUS_CLOSED
-				source.closeCh <- struct{}{}
+		for id, source := range e.Sources {
+			if source.Config.InferenceFramerate > maxFPS {
+				maxFPS = source.Config.InferenceFramerate
 			}
-			if source.status == util.SOURCE_STATUS_CLOSED {
-				continue
-			}
-			ids = append(ids, id)
-			source.m.RLock()
-			if source.config.infFPS > maxFPS {
-				maxFPS = source.config.infFPS
-			}
-			weightMap[id] = source.config.infFPS
-			source.m.RUnlock()
+			weightMap[id] = source.Config.InferenceFramerate
+			weightList = append(weightList, source.Config.InferenceFramerate)
 		}
 		e.m.RUnlock()
-		if len(ids) == 0 {
-			continue
-		}
-		sort.Ints(ids)
-		gcd := util.Reduce(weightMap)
+		gcd := util.GCDList(weightList)
 		for w := 1; w <= maxFPS/gcd; w++ {
-			for _, id := range ids {
-				source := e.sources[id]
-				if weightMap[id] < w || len(source.infQ) == 0 {
+			for id, s := range e.Sources {
+				if weightMap[id] < w || len(s.infQ) == 0 {
 					continue
 				}
 				timer := time.NewTimer(util.TIMEOUT_DURATION)
 				select {
-				case frame := <-source.infQ:
-					logrus.Debugf("Infer frame %d of source %d", frame.index, frame.source)
+				case frame := <-s.infQ:
+					logrus.Debugf("Infer frame %d of source %d", frame.Index, frame.Source)
 					_, err := e.workerClient.InferFrame(context.Background(), &pw.InferFrameRequest{
-						Source: int64(frame.source),
-						Index:  int64(frame.index),
+						Source: int64(frame.Source),
+						Index:  int64(frame.Index),
 					})
 					if err != nil {
-						logrus.WithError(err).Errorf("Infer frame %d of source %d failed", frame.index, frame.source)
+						logrus.WithError(err).Errorf("Infer frame %d of source %d failed", frame.Index, frame.Source)
 						return
 					}
-					source.record.processedAcc++
+					s.record.Processed++
 				case <-timer.C:
 					continue
 				}
@@ -259,111 +237,63 @@ func (e *Edge) inferenceLoop() {
 }
 
 func (e *Edge) AddSource(ctx context.Context, request *pe.EdgeAddSourceRequest) (*pe.EdgeAddSourceResponse, error) {
-	source := &Source{
-		m:  sync.RWMutex{},
-		id: int(request.Source),
-		record: Record{
-			lastReceivedAcc:  0,
-			receivedAcc:      0,
-			lastProcessedAcc: 0,
-			processedAcc:     0,
-			lastUploadedAcc:  0,
-			uploadedAcc:      0,
+	s := &Source{
+		ID: int(request.Source),
+		record: MonitorRecord{
+			LastReceived:  0,
+			Received:      0,
+			LastProcessed: 0,
+			Processed:     0,
+			LastUploaded:  0,
+			Uploaded:      0,
 		},
-		status:   util.SOURCE_STATUS_CONNECTED,
-		version:  0,
-		dataset:  request.Dataset,
+		Version:  0,
+		Dataset:  request.Dataset,
 		infQ:     make(chan *Frame, 100),
 		retQ:     make(chan *Frame, 100),
 		updateCh: make(chan struct{}),
 		closeCh:  make(chan struct{}),
 	}
 	if _, err := e.workerClient.UpdateModel(context.Background(), &pw.EdgeUpdateModelRequest{
-		Source:  int64(source.id),
+		Source:  int64(s.ID),
 		Version: 0,
 	}); err != nil {
-		logrus.WithError(err).Errorf("Failed to add model for source %d", source.id)
+		logrus.WithError(err).Errorf("Failed to add model for source %d", s.ID)
 		return nil, util.ErrAddModel
 	}
-	logrus.Debugf("Model added for source %d", source.id)
-	if _, err := e.cloudClient.AddSource(context.Background(), &pc.CloudAddSourceRequest{
-		Edge:   int64(e.id),
-		Source: int64(source.id),
-	}); err != nil {
-		logrus.WithError(err).Errorf("Failed to add source %d to cloud", e.id)
-		return nil, util.ErrAddSource
+	logrus.Debugf("Model added for source %d", s.ID)
+	cResource, nResource := e.Config.EdgeFPS, e.Config.UplinkFPS
+	s.Config.InferenceFramerate = int(cResource) / e.Config.NSourcesPerEdge
+	s.Config.UploadingFramerate = int(nResource) / e.Config.NSourcesPerEdge
+	s.Config.InfSamplePos = util.GenerateSamplePosition(s.Config.InferenceFramerate, s.Config.OriginalFramerate, 0)
+	s.Config.RetSamplePos = util.GenerateSamplePosition(s.Config.UploadingFramerate, s.Config.OriginalFramerate, 0)
+	e.Sources[s.ID] = s
+	logrus.Infof("Connect source %d", s.ID)
+	if len(e.Sources) == e.Config.NSourcesPerEdge {
+		defer e.Start()
 	}
-	cResource, nResource := e.cMonitor.GetResource(), e.nMonitor.GetResource()
-	count := 0
-	e.m.RLock()
-	for _, source := range e.sources {
-		if source.status == util.SOURCE_STATUS_CONNECTED {
-			count++
-		}
-	}
-	source.config.infFPS = int(cResource) / (count + 1)
-	source.config.retFPS = int(nResource) / (count + 1)
-	for _, source := range e.sources {
-		source.m.Lock()
-		if source.status != util.SOURCE_STATUS_CONNECTED {
-			source.m.Unlock()
-			continue
-		}
-		source.config.infFPS = int(cResource) * count / (count + 1)
-		source.config.infSample = util.GenerateSamplePosition(source.config.infFPS, source.config.orgFPS, 0)
-		source.config.retFPS = int(nResource) * count / (count + 1)
-		source.config.retSample = util.GenerateSamplePosition(source.config.retFPS, source.config.orgFPS, 0)
-		source.m.Unlock()
-	}
-	e.m.RUnlock()
-	e.m.Lock()
-	e.sources[source.id] = source
-	e.m.Unlock()
-	logrus.Infof("Connect source %d", source.id)
-	source.lastMonitor = time.Now()
 	return &pe.EdgeAddSourceResponse{
-		Edge: int64(e.id),
+		Edge: int64(e.ID),
 	}, nil
-}
-
-func (e *Edge) RemoveSource(ctx context.Context, request *pe.RemoveSourceRequest) (*pe.RemoveSourceResponse, error) {
-	id := int(request.Source)
-	source, ok := e.sources[id]
-	if !ok {
-		return nil, util.ErrSourceNotFound
-	}
-	source.status = util.SOURCE_STATUS_DISCONNECTED
-	logrus.Infof("Disconnect with source %d", id)
-	if _, err := e.cloudClient.RemoveSource(context.Background(), &pc.CloudRemoveSourceRequest{
-		Edge:   int64(e.id),
-		Source: request.Source,
-	}); err != nil {
-		logrus.WithError(err).Errorf("Failed to remove source %v from cloud", request.Source)
-	}
-	<-source.closeCh
-	logrus.Infof("Close source %d", id)
-	return &pe.RemoveSourceResponse{}, nil
 }
 
 func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest) (*pe.SourceSendFrameResponse, error) {
 	id := int(request.Source)
 	e.m.RLock()
-	source, ok := e.sources[id]
+	source, ok := e.Sources[id]
 	e.m.RUnlock()
 	if !ok {
 		return nil, util.ErrSourceNotFound
 	}
-	source.m.RLock()
-	needInf, needRet := util.Exist(source.config.infSample, int(request.Index)%source.config.orgFPS), util.Exist(source.config.retSample, int(request.Index)%source.config.orgFPS)
-	source.m.Unlock()
+	needInf, needRet := util.Exist(source.Config.InfSamplePos, int(request.Index)%source.Config.OriginalFramerate), util.Exist(source.Config.RetSamplePos, int(request.Index)%source.Config.OriginalFramerate)
 	if needInf || needRet {
-		path := fmt.Sprintf("%s/%s/%s", e.workDir, util.FrameDir, util.EdgeGetFrameName(int(request.Source), int(request.Index)))
+		path := filepath.Join(e.WorkDir, util.FrameDir, util.EdgeGetFrameName(int(request.Source), int(request.Index)))
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 		if err != nil {
 			logrus.WithError(err).Errorf("Open frame %d for source %d failed", request.Index, request.Source)
 			return &pe.SourceSendFrameResponse{}, nil
 		}
-		_, err = file.Write(request.Content)
+		_, err = file.Write(request.Blob)
 		if err != nil {
 			logrus.WithError(err).Errorf("Write frame %d for source %d failed", request.Index, request.Source)
 			file.Close()
@@ -372,8 +302,8 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest
 		file.Close()
 	}
 	frame := &Frame{
-		index:  int(request.Index),
-		source: id,
+		Index:  int(request.Index),
+		Source: id,
 	}
 	if needInf {
 		source.infQ <- frame
@@ -382,56 +312,53 @@ func (e *Edge) SendFrame(ctx context.Context, request *pe.SourceSendFrameRequest
 		source.retQ <- frame
 	}
 	logrus.Debugf("Receive frame %d from source %d", request.Index, id)
-	source.m.Lock()
-	source.record.receivedAcc++
-	source.m.Unlock()
+	source.record.Received++
 	return &pe.SourceSendFrameResponse{}, nil
 }
 
 func (e *Edge) UpdateModel(ctx context.Context, request *pe.CloudUpdateModelRequest) (*pe.CloudUpdateModelResponse, error) {
 	id := int(request.Source)
 	e.m.RLock()
-	source, ok := e.sources[id]
+	source, ok := e.Sources[id]
 	e.m.RUnlock()
 	if !ok {
 		return nil, util.ErrSourceNotFound
 	}
-	source.version++
-	path := fmt.Sprintf("%s/%s/%s", e.workDir, util.ModelDir, util.EdgeGetModelName(int(request.Source), source.version))
+	source.Version++
+	path := filepath.Join(e.WorkDir, util.ModelDir, util.EdgeGetModelName(int(request.Source), source.Version))
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to open model for source %d v%d", request.Source, source.version)
+		logrus.WithError(err).Errorf("Failed to open model for source %d v%d", request.Source, source.Version)
 		return &pe.CloudUpdateModelResponse{}, nil
 	}
 	defer file.Close()
 	_, err = file.Write(request.Model)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to write model for source %d v%d", request.Source, source.version)
+		logrus.WithError(err).Errorf("Failed to write model for source %d v%d", request.Source, source.Version)
 		return &pe.CloudUpdateModelResponse{}, nil
 	}
 	_, err = e.workerClient.UpdateModel(context.Background(), &pw.EdgeUpdateModelRequest{
 		Source:  request.Source,
-		Version: int64(source.version),
+		Version: int64(source.Version),
 	})
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to update model for source %d v%d", request.Source, source.version)
+		logrus.WithError(err).Errorf("Failed to update model for source %d v%d", request.Source, source.Version)
 		return &pe.CloudUpdateModelResponse{}, nil
 	}
-	logrus.Infof("Update model for source %d to v%d", source.id, source.version)
+	logrus.Infof("Update model for source %d to v%d", source.ID, source.Version)
 	// source.updateCh <- struct{}{}
 	return &pe.CloudUpdateModelResponse{}, nil
 }
 
 func (e *Edge) UpdateConfig(ctx context.Context, request *pe.CloudUpdateConfigRequest) (*pe.CloudUpdateConfigResponse, error) {
-	source, ok := e.sources[int(request.Source)]
+	source, ok := e.Sources[int(request.Source)]
 	if !ok {
 		return nil, util.ErrSourceNotFound
 	}
-	source.m.Lock()
-	source.config.infFPS = int(request.InfFps)
-	source.config.retFPS = int(request.RetFps)
-	source.config.infSample = util.GenerateSamplePosition(source.config.infFPS, source.config.orgFPS, 0)
-	source.config.retSample = util.GenerateSamplePosition(source.config.retFPS, source.config.orgFPS, 0)
-	source.m.Unlock()
+	source.Config.InferenceFramerate = int(request.InfFramerate)
+	source.Config.UploadingFramerate = int(request.RetFramerate)
+	source.Config.InfSamplePos = util.GenerateSamplePosition(source.Config.InferenceFramerate, source.Config.OriginalFramerate, 0)
+	source.Config.RetSamplePos = util.GenerateSamplePosition(source.Config.UploadingFramerate, source.Config.OriginalFramerate, 0)
+	logrus.Debugf("Source %v update config inf: %d FPS, ret: %d FPS", source.ID, source.Config.InferenceFramerate, source.Config.UploadingFramerate)
 	return &pe.CloudUpdateConfigResponse{}, nil
 }

@@ -3,10 +3,9 @@ package cloud
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
-	"sync"
+	"path/filepath"
 	"time"
 
 	pc "vakd/proto/cloud"
@@ -19,104 +18,104 @@ import (
 )
 
 type Model struct {
-	source  int
-	edge    int
-	version int
+	Source  int
+	Edge    int
+	Version int
 }
 
 type Source struct {
-	id            int
-	status        int
-	version       int
-	infConfig     int
-	retConfig     int
-	profile       []float64
-	lastRetrained time.Time
+	ID            int
+	Version       int
+	Current       int
+	LastRetrained int
+	Config        util.SourceConfig
+
+	profile []float64
 }
 
 type Edge struct {
-	m        sync.RWMutex
-	id       int
-	sources  map[int]*Source
-	disabled bool
-	client   pe.EdgeForCloudClient
+	ID      int
+	Sources map[int]*Source
+
+	client pe.EdgeForCloudClient
 }
 
 type Cloud struct {
 	pc.CloudForEdgeServer
-	m          sync.RWMutex
-	retWin     time.Duration
-	monitor    *MockNetworkMonitor
-	config     util.SimulationConfig
-	address    string
-	workDir    string
-	edges      map[int]*Edge
+
+	Address string
+	WorkDir string
+	Edges   map[int]*Edge
+	Config  util.SimulationConfig
+
 	client     pt.TrainerForCloudClient
 	downloadCh chan *Model
 }
 
 func NewCloud(address string, workDir string, config string, client pt.TrainerForCloudClient) (*Cloud, error) {
-	cloud := &Cloud{
-		m:       sync.RWMutex{},
-		workDir: workDir,
-		address: address,
-		edges:   make(map[int]*Edge),
-		retWin:  util.INITIAL_RETRAIN_WINDOW,
-		monitor: NewMockNetworkMonitor(util.DOWNLINK_NETWORK_BOTTLENECK),
+	// create c
+	c := &Cloud{
+		WorkDir: workDir,
+		Address: address,
+		Edges:   make(map[int]*Edge),
 		client:  client,
 	}
-	_, err := client.InitTrainer(context.Background(), &pt.InitTrainerRequest{
+	// read simulation config
+	file, err := os.Open(config)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(content, &c.Config)
+	if err != nil {
+		return nil, err
+	}
+	//connect to trainer
+	_, err = client.InitTrainer(context.Background(), &pt.InitTrainerRequest{
 		WorkDir: workDir,
 	})
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.Open(config)
-	defer func() {
-		file.Close()
-	}()
-	if err != nil {
-		return nil, err
-	}
-	content, err := ioutil.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(content, &cloud.config)
-	if err != nil {
-		return nil, err
-	}
-	go cloud.downloadLoop()
-	go cloud.retrainLoop()
-	return cloud, nil
+	return c, nil
+}
+
+func (c *Cloud) Start() {
+	logrus.Info("Cloud started")
+	go c.downloadLoop()
+	go c.retrainLoop()
 }
 
 func (c *Cloud) downloadLoop() {
 	for {
 		model := <-c.downloadCh
-		edge, ok := c.edges[model.edge]
+		edge, ok := c.Edges[model.Edge]
 		if !ok {
-			logrus.Errorf("Edge %v not found on model update", model.edge)
+			logrus.Errorf("Edge %v not found on model update", model.Edge)
 			continue
 		}
-		file, err := os.Open(fmt.Sprintf("%s/%s/%s", c.workDir, util.ModelDir, util.CloudGetModelName(model.edge, model.source, model.version)))
+		file, err := os.Open(filepath.Join(c.WorkDir, util.ModelDir, util.CloudGetModelName(model.Edge, model.Source, model.Version)))
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to open model of source %v edge %v v%v", model.source, model.edge, model.version)
+			logrus.WithError(err).Errorf("Failed to open model of source %v edge %v version %v", model.Source, model.Edge, model.Version)
 			continue
 		}
 		content, err := ioutil.ReadAll(file)
 		if err != nil {
 			file.Close()
-			logrus.WithError(err).Errorf("Failed to read model of source %v edge %v v%v", model.source, model.edge, model.version)
+			logrus.WithError(err).Errorf("Failed to read model of source %v edge %v version %v", model.Source, model.Edge, model.Version)
 			continue
 		}
 		file.Close()
 		if _, err = edge.client.UpdateModel(context.Background(), &pe.CloudUpdateModelRequest{
-			Source:  int64(model.source),
-			Version: int64(model.version),
+			Source:  int64(model.Source),
+			Version: int64(model.Version),
 			Model:   content,
 		}); err != nil {
-			logrus.WithError(err).Errorf("Failed to update model of source %v edge %v", model.source, model, edge)
+			logrus.WithError(err).Errorf("Failed to update model of source %v edge %v", model.Source, model, edge)
 			continue
 		} else {
 			c.reallocateResource()
@@ -125,88 +124,18 @@ func (c *Cloud) downloadLoop() {
 }
 
 func (c *Cloud) reallocateResource() {
-	c.m.Lock()
-	defer c.m.Unlock()
-	sources, totRetConfig := make([]*Source, 0), 0
-	for _, edge := range c.edges {
-		if edge.disabled {
-			continue
-		}
-		for _, source := range edge.sources {
-			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
-				sources = append(sources, source)
-				totRetConfig += source.retConfig
-			}
-		}
-	}
-	for _, source := range sources {
-		source.retConfig = totRetConfig / len(sources)
-	}
-	for i := 0; i < len(sources); i++ {
-		for j := 0; j < len(sources); j++ {
-			if i == j {
-				continue
-			}
-			for {
-				if sources[i].retConfig == util.N_RETCONFIG-1 || sources[j].retConfig == 0 {
-					break
+	for _, e := range c.Edges {
+		for _, s := range e.Sources {
+			s.Config.InferenceFramerate = c.Config.EdgeFPS / c.Config.NSourcesPerEdge
+			s.Config.UploadingFramerate = c.Config.EdgeFPS / c.Config.NEdges / c.Config.NSourcesPerEdge
+			go func(source *Source, edge *Edge) {
+				if _, err := edge.client.UpdateConfig(context.Background(), &pe.CloudUpdateConfigRequest{
+					InfFramerate: int64(source.Config.InferenceFramerate),
+					RetFramerate: int64(source.Config.UploadingFramerate),
+				}); err != nil {
+					logrus.WithError(err).Errorf("Update config of source %v edge %v failed", source.ID, edge.ID)
 				}
-				currAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig)]
-				nextAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig+1, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig-1, sources[j].infConfig)]
-				if currAcc > nextAcc {
-					break
-				}
-				sources[i].retConfig++
-				sources[j].retConfig--
-			}
-		}
-	}
-	for _, edge := range c.edges {
-		sources, totInfConfig := make([]*Source, 0), 0
-		for _, source := range edge.sources {
-			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
-				sources = append(sources, source)
-				totInfConfig += source.infConfig
-			}
-		}
-		for _, source := range sources {
-			source.infConfig = totInfConfig / len(sources)
-		}
-		for i := 0; i < len(sources); i++ {
-			for j := 0; j < len(sources); j++ {
-				if i == j {
-					continue
-				}
-				for {
-					if sources[i].infConfig == util.N_INFCONFIG-1 || sources[j].infConfig == 0 {
-						break
-					}
-					currAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig)]
-					nextAcc := sources[i].profile[util.ConfigToIndex(sources[i].retConfig, sources[i].infConfig+1)] + sources[j].profile[util.ConfigToIndex(sources[j].retConfig, sources[j].infConfig-1)]
-					if currAcc > nextAcc {
-						break
-					}
-					sources[i].infConfig++
-					sources[j].infConfig--
-				}
-			}
-		}
-	}
-	for _, edge := range c.edges {
-		if edge.disabled {
-			continue
-		}
-		for _, source := range edge.sources {
-			if source.status == util.SOURCE_STATUS_CONNECTED && source.profile != nil {
-				go func(source *Source, edge *Edge) {
-					if _, err := edge.client.UpdateConfig(context.Background(), &pe.CloudUpdateConfigRequest{
-						InfFps: int64(util.InfConfigToFPS(source.infConfig)),
-						RetFps: int64(util.RetConfigToFPS(source.retConfig)),
-					}); err != nil {
-						logrus.WithError(err).Errorf("Update config of source %v edge %v failed", source.id, edge.id)
-					}
-				}(source, edge)
-			}
+			}(s, e)
 		}
 	}
 }
@@ -214,42 +143,34 @@ func (c *Cloud) reallocateResource() {
 func (c *Cloud) retrainLoop() {
 	timer := time.NewTicker(util.MONITOR_INTERVAL)
 	for {
-		c.m.Lock()
-		edges := c.edges
-		c.m.Unlock()
-		for _, edge := range edges {
-			if edge.disabled {
-				continue
-			}
-			edge.m.Lock()
-			sources := edge.sources
-			edge.m.Unlock()
-			for _, source := range sources {
-				if source.status != util.SOURCE_STATUS_CONNECTED || time.Since(source.lastRetrained) < c.retWin {
+		for _, e := range c.Edges {
+			for _, s := range e.Sources {
+				if s.Current-s.LastRetrained < c.Config.RetrainWindow {
 					continue
 				}
+				s.LastRetrained = s.Current
 				go func(source *Source, edge *Edge) {
 					response, err := c.client.TriggerRetrain(context.Background(), &pt.TriggerRetrainRequest{
-						Edge:    int64(edge.id),
-						Source:  int64(source.id),
-						Version: int64(source.version + 1),
+						Edge:    int64(edge.ID),
+						Source:  int64(source.ID),
+						Version: int64(source.Version + 1),
 					})
 					if err != nil {
-						logrus.WithError(err).Errorf("Failed to retrain model of source %v edge %v", source.id, edge.id)
+						logrus.WithError(err).Errorf("Failed to retrain model of source %v edge %v", source.ID, edge.ID)
 						return
 					}
-					source.version++
+					source.Version++
 					source.profile = response.Profile
 					if response.Updated {
-						logrus.Infof("Retrain model of source %v edge %v skipped", source.id, edge.id)
+						logrus.Infof("Retrain model of source %v edge %v skipped", source.ID, edge.ID)
 						return
 					}
 					c.downloadCh <- &Model{
-						source:  source.id,
-						edge:    edge.id,
-						version: source.version,
+						Source:  source.ID,
+						Edge:    edge.ID,
+						Version: source.Version,
 					}
-				}(source, edge)
+				}(s, e)
 			}
 		}
 		<-timer.C
@@ -263,101 +184,41 @@ func (c *Cloud) AddEdge(ctx context.Context, request *pc.AddEdgeRequest) (*pc.Ad
 		return nil, err
 	}
 	client := pe.NewEdgeForCloudClient(connection)
-	c.m.Lock()
-	defer c.m.Unlock()
 	edge := &Edge{
-		m:        sync.RWMutex{},
-		id:       int(request.Edge),
-		client:   client,
-		sources:  make(map[int]*Source),
-		disabled: false,
+		ID:      int(request.Edge),
+		client:  client,
+		Sources: make(map[int]*Source),
 	}
+	c.Edges[edge.ID] = edge
 	for _, id := range request.Sources {
-		edge.sources[int(id)] = &Source{
-			id:            int(id),
-			version:       0,
-			status:        util.SOURCE_STATUS_CONNECTED,
-			profile:       nil,
-			infConfig:     c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
-			retConfig:     c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge,
-			lastRetrained: time.Now(),
+		edge.Sources[int(id)] = &Source{
+			ID:      int(id),
+			Version: 0,
+			Current: 0,
+			profile: nil,
+			Config: util.SourceConfig{
+				InferenceFramerate: c.Config.EdgeFPS / c.Config.NSourcesPerEdge,
+				UploadingFramerate: c.Config.UplinkFPS / c.Config.NSourcesPerEdge / c.Config.NEdges,
+			},
+			LastRetrained: -1,
 		}
 	}
-	c.edges[edge.id] = edge
-	logrus.Infof("Connected with edge %d", edge.id)
+	logrus.Infof("Connected with edge %d", edge.ID)
+	if len(c.Edges) == c.Config.NEdges {
+		defer c.Start()
+	}
 	return &pc.AddEdgeResponse{}, nil
 }
 
-func (c *Cloud) AddSource(ctx context.Context, request *pc.CloudAddSourceRequest) (*pc.CloudAddSourceResponse, error) {
-	c.m.RLock()
-	edge, ok := c.edges[int(request.Edge)]
-	if !ok {
-		c.m.RUnlock()
-		return nil, util.ErrEdgeNotFound
-	}
-	c.m.RUnlock()
-	edge.m.Lock()
-	_, ok = edge.sources[int(request.Source)]
-	if ok {
-		edge.m.Unlock()
-		return nil, util.ErrSourceExist
-	}
-	edge.sources[int(request.Source)] = &Source{
-		id:            int(request.Source),
-		status:        util.SOURCE_STATUS_CONNECTED,
-		version:       0,
-		profile:       nil,
-		infConfig:     c.config.EdgeResourceBottleneckFPS / c.config.NSourcesPerEdge,
-		retConfig:     c.config.UplinkResourceBottleneckFPS / c.config.NEdges / c.config.NSourcesPerEdge,
-		lastRetrained: time.Now(),
-	}
-	edge.m.Unlock()
-	return &pc.CloudAddSourceResponse{}, nil
-}
-
-func (c *Cloud) RemoveEdge(ctx context.Context, request *pc.RemoveEdgeRequest) (*pc.RemoveEdgeResponse, error) {
-	id := int(request.Edge)
-	c.m.Lock()
-	defer c.m.Unlock()
-	if _, ok := c.edges[id]; !ok {
-		return nil, util.ErrEdgeNotFound
-	}
-	c.edges[id].disabled = true
-	logrus.Infof("Disconnected with edge %d", id)
-	return &pc.RemoveEdgeResponse{}, nil
-}
-
-func (c *Cloud) RemoveSource(ctx context.Context, request *pc.CloudRemoveSourceRequest) (*pc.CloudRemoveSourceResponse, error) {
-	c.m.RLock()
-	edge, ok := c.edges[int(request.Edge)]
-	if !ok {
-		c.m.RUnlock()
-		return nil, util.ErrEdgeNotFound
-	}
-	c.m.RUnlock()
-	edge.m.Lock()
-	source, ok := edge.sources[int(request.Source)]
-	if !ok {
-		c.m.Unlock()
-		return nil, util.ErrSourceNotFound
-	}
-	source.status = util.SOURCE_STATUS_DISCONNECTED
-	c.m.Unlock()
-	return &pc.CloudRemoveSourceResponse{}, nil
-}
-
 func (c *Cloud) SendFrame(ctx context.Context, request *pc.EdgeSendFrameRequest) (*pc.EdgeSendFrameResponse, error) {
-	c.m.RLock()
-	if _, ok := c.edges[int(request.Edge)]; !ok {
-		c.m.RUnlock()
+	if _, ok := c.Edges[int(request.Edge)]; !ok {
 		return nil, util.ErrEdgeNotFound
 	}
-	if _, ok := c.edges[int(request.Edge)].sources[int(request.Source)]; !ok {
-		c.m.RUnlock()
+	s, ok := c.Edges[int(request.Edge)].Sources[int(request.Source)]
+	if !ok {
 		return nil, util.ErrSourceNotFound
 	}
-	c.m.RUnlock()
-	path := fmt.Sprintf("%s/%s/%s", c.workDir, util.FrameDir, util.CloudGetFrameName(int(request.Edge), int(request.Source), int(request.Index)))
+	path := filepath.Join(c.WorkDir, util.FrameDir, util.CloudGetFrameName(int(request.Edge), int(request.Source), int(request.Index)))
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to open frame %v of edge %v source %v", request.Index, request.Edge, request.Source)
@@ -378,5 +239,6 @@ func (c *Cloud) SendFrame(ctx context.Context, request *pc.EdgeSendFrameRequest)
 	if err != nil {
 		return nil, err
 	}
+	s.Current = int(request.Index)
 	return &pc.EdgeSendFrameResponse{}, nil
 }

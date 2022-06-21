@@ -2,35 +2,24 @@ package util
 
 import "fmt"
 
-func GCD(l []int) int {
+func GCD(a int, b int) int {
+	for b != 0 {
+		t := b
+		b = a % b
+		a = t
+	}
+	return a
+}
+
+func GCDList(l []int) int {
 	if len(l) == 1 {
 		return l[0]
 	}
-	gcd := func(a int, b int) int {
-		for b != 0 {
-			t := b
-			b = a % b
-			a = t
-		}
-		return a
-	}
-	var r int
-	for i := 0; i < len(l)-1; i++ {
-		r = gcd(l[i], l[i+1])
+	r := l[0]
+	for i := 1; i < len(l); i++ {
+		r = GCD(r, l[i])
 	}
 	return r
-}
-
-func Reduce(m map[int]int) int {
-	l := make([]int, 0)
-	for _, v := range m {
-		l = append(l, v)
-	}
-	gcd := GCD(l)
-	for k, v := range m {
-		m[k] = v / gcd
-	}
-	return gcd
 }
 
 func GenerateSamplePosition(sampleCount int, sampleInterval int, offset int) []int {
@@ -78,28 +67,4 @@ func CloudGetFrameName(edge int, source int, index int) string {
 
 func CloudGetModelName(edge int, source int, version int) string {
 	return fmt.Sprintf("%d-%d-%d.pth", edge, source, version)
-}
-
-func InfConfigToFPS(cfg int) int {
-	return (cfg + 1) * 5
-}
-
-func RetConfigToFPS(cfg int) int {
-	return cfg
-}
-
-func InfFPSToConfig(fps int) int {
-	return fps/5 - 1
-}
-
-func RetFPSToConfig(fps int) int {
-	return fps
-}
-
-func ConfigToIndex(retCfg int, infCfg int) int {
-	return retCfg*N_INFCONFIG + infCfg
-}
-
-func IndexToConfig(index int) (int, int) {
-	return index / N_INFCONFIG, index % N_INFCONFIG
 }

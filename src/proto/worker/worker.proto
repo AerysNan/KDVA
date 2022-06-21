@@ -4,7 +4,6 @@ option go_package = "./;pw";
 service WorkerForEdge {
   rpc InitWorker (InitWorkerRequest) returns (InitWorkerResponse) {}
   rpc InferFrame (InferFrameRequest) returns (InferFrameResponse) {}
-  rpc RemoveModel (RemoveModelRequest) returns (RemoveModelResponse) {}
   rpc UpdateModel (EdgeUpdateModelRequest) returns (EdgeUpdateModelResponse) {}
 }
 
@@ -27,9 +26,3 @@ message EdgeUpdateModelRequest {
 }
 
 message EdgeUpdateModelResponse {}
-
-message RemoveModelRequest {
-  int64 source = 1;
-}
-
-message RemoveModelResponse {}

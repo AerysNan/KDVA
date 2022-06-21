@@ -1,7 +1,0 @@
-{
-  "profile_path": "profile.pkl",
-  "window_size": 500,
-  "original_framerate": 25,
-  "model_path": "snapshots",
-  "training_delay": 10
-}

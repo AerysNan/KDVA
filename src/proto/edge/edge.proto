@@ -4,32 +4,25 @@ option go_package = "./;pe";
 service EdgeForSource {
   rpc AddSource (EdgeAddSourceRequest) returns (EdgeAddSourceResponse) {}
   rpc SendFrame (SourceSendFrameRequest) returns (SourceSendFrameResponse) {}
-  rpc RemoveSource(RemoveSourceRequest) returns(RemoveSourceResponse){}
 }
 
 message EdgeAddSourceRequest {
   int64 source = 1;
-  int64 fps = 2;
+  int64 framerate = 2;
   string dataset = 3;
 }
 
 message EdgeAddSourceResponse {
-  int64 edge = 2;
+  int64 edge = 1;
 }
 
 message SourceSendFrameRequest {
   int64 source = 1;
   int64 index = 2;
-  bytes content = 3;
+  bytes blob = 3;
 }
 
 message SourceSendFrameResponse {}
-
-message RemoveSourceRequest {
-  int64 source = 1;
-}
-
-message RemoveSourceResponse {}
 
 service EdgeForCloud {
   rpc UpdateModel (CloudUpdateModelRequest) returns (CloudUpdateModelResponse) {}
@@ -46,8 +39,8 @@ message CloudUpdateModelResponse {}
 
 message CloudUpdateConfigRequest {
   int64 source = 1;
-  int64 inf_fps = 2;
-  int64 ret_fps = 3;
+  int64 inf_framerate = 2;
+  int64 ret_framerate = 3;
 }
 
 message CloudUpdateConfigResponse {}

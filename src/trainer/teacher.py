@@ -1,4 +1,8 @@
+from mmdet.apis import init_detector, inference_detector, train_detector, set_random_seed
+from mmdet.datasets.builder import build_dataset
+from mmdet.models import build_detector
 from collections import defaultdict
+
 import logging
 import shutil
 import pickle
@@ -14,52 +18,35 @@ import trainer_pb2
 import trainer_pb2_grpc
 from rwlock import RWLock
 
-from mmdet.apis import init_detector, inference_detector, train_detector, set_random_seed
-from mmdet.datasets.builder import build_dataset
-from mmdet.models import build_detector
-
 
 LOCK = RWLock()
-MODEL_FILE = 'models.json'
-EMULATION_FILE = 'emulation.json'
-TEMPLATE_FILE = 'template.json'
-ANNOTATION_DIR = 'annotations'
+
+ANNO_DIR = 'annos'
 LABEL_DIR = 'labels'
 FRAME_DIR = 'frames'
 MODEL_DIR = 'models'
-BACKUP_DIR = 'backups'
-RETRAIN_DIR = 'retrain'
-RETRAIN_THRESHOLD = 10
-IMG_HEIGHT = 540
-IMG_WIDTH = 960
 
 
 class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
-    def __init__(self, student_model, teacher_model, emulated, **_):
-        models = json.load(open(MODEL_FILE))
-        self.emulated = emulated
+    def __init__(self, teacher_checkpoint, teacher_config, student_checkpoint, student_config, emulated, device, ** _):
         self.frame_dict = defaultdict(lambda: [])
-        if emulated:
-            with open(EMULATION_FILE) as f:
-                self.emulation_config = json.load(f)
-            return
         self.gpu_index = 0
-        self.teacher_config = mmcv.Config.fromfile(models[teacher_model]['config'])
-        self.student_config = mmcv.Config.fromfile(models[student_model]['config'])
-        self.teacher_checkpoint = models[teacher_model]['checkpoint']
-        self.student_checkpoint = models[student_model]['checkpoint']
-        self.teacher_model = init_detector(self.teacher_config, self.teacher_checkpoint, device=f'cuda:{self.get_next_available_gpu()}')
-        self.gpu_dict = {}
+        self.teacher_config = mmcv.Config.fromfile(teacher_config)
+        self.student_config = mmcv.Config.fromfile(student_config)
+        self.teacher_checkpoint = teacher_checkpoint
+        self.student_checkpoint = student_checkpoint
+        self.emulated = emulated
+        self.device = device
+        self.teacher_model = init_detector(self.teacher_config, self.teacher_checkpoint, device=self.device)
         self.student_dict = {}
 
     def InitTrainer(self, request, _):
         self.work_dir = request.work_dir
         logging.info(f'Work directory set to {self.work_dir}')
-        os.makedirs(f'{self.work_dir}/{ANNOTATION_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{BACKUP_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{LABEL_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{FRAME_DIR}', exist_ok=True)
-        os.makedirs(f'{self.work_dir}/{MODEL_DIR}', exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, ANNO_DIR), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, LABEL_DIR), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, FRAME_DIR), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, MODEL_DIR), exist_ok=True)
         return trainer_pb2.InitTrainerResponse()
 
     def SendFrame(self, request, _):
@@ -69,7 +56,6 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         if model_key not in self.student_dict:
             logging.info(f'Add new stream of source {request.source} edge {request.edge}')
             self.student_dict[model_key] = self.init_model()
-            self.gpu_dict[model_key] = self.get_next_available_gpu()
         logging.debug(f'Receive frame {request.index} of source {request.source} edge {request.edge}')
         frame = cv2.imread(self.get_frame_dir(request.source, request.index))
         LOCK.r_acquire()
@@ -140,7 +126,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         return trainer_pb2.RetProfile(profile=p, updated=True)
 
     def init_model(self):
-        return init_detector(self.student_config, self.student_checkpoint, device=f'cuda:{self.get_next_available_gpu()}')
+        return init_detector(self.student_config, self.student_checkpoint, device=self.device)
 
     def get_result_dir(self, edge, source, index):
         return f'{self.work_dir}/{ANNOTATION_DIR}/{edge}-{source}-{index}.pkl'
@@ -156,12 +142,6 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
 
     def get_retrain_dir(self, edge, source, version):
         return f'{self.work_dir}/{RETRAIN_DIR}/{edge}-{source}-{version}'
-
-    def get_next_available_gpu(self):
-        if self.gpu_index == torch.cuda.device_count():
-            return None
-        self.gpu_index += 1
-        return self.gpu_index - 1
 
     def generate_annotation(self, edge, source, indices, threshold=0.5):
         indices.sort()

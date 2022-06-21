@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrDatasetNotFound = errors.New("dataset not found")
 	ErrSourceNotFound  = errors.New("source ID not found")
 	ErrEdgeNotFound    = errors.New("edge ID not found")
 	ErrSourceExist     = errors.New("source ID already exist")
@@ -19,28 +20,32 @@ var (
 )
 
 const (
-	MONITOR_INTERVAL            = time.Millisecond * 1000
-	CLOSE_INTERVAL              = time.Millisecond * 1000
-	TIMEOUT_DURATION            = time.Millisecond * 100
-	INITIAL_RETRAIN_WINDOW      = time.Second * 60
-	COMPUTATION_BOTTLENECK      = 100
-	UPLINK_NETWORK_BOTTLENECK   = 100
-	DOWNLINK_NETWORK_BOTTLENECK = 50
-	N_RETCONFIG                 = 7
-	N_INFCONFIG                 = 5
-)
-
-const (
-	SOURCE_STATUS_CONNECTED = iota
-	SOURCE_STATUS_DISCONNECTED
-	SOURCE_STATUS_CLOSED
+	MONITOR_INTERVAL = time.Millisecond * 1000
+	TIMEOUT_DURATION = time.Millisecond * 100
 )
 
 type SimulationConfig struct {
-	NEdges                         int     `json:"n_edges"`
-	NSourcesPerEdge                int     `json:"n_sources_per_edge"`
-	EdgeResourceBottleneckFPS      int     `json:"edge_resource_bottleneck_fps"`
-	UplinkResourceBottleneckFPS    int     `json:"uplink_resource_bottleneck_fps"`
-	DownlinkResourceBottleneckMbPS float64 `json:"downlink_resource_bottleneck_mbps"`
-	ModelSizeMb                    float64 `json:"model_size_mb"`
+	NEdges          int         `json:"n_edges"`
+	NSourcesPerEdge int         `json:"n_sources_per_edge"`
+	EdgeFPS         int         `json:"edge_fps"`
+	UplinkFPS       int         `json:"uplink_fps"`
+	RetrainWindow   int         `json:"retrain_window"`
+	RetrainCfgs     map[int]int `json:"retrain_cfgs"`
+	InferenceCfgs   map[int]int `json:"inference_cfgs"`
+}
+
+type DatasetInfo struct {
+	Name      string `json:"name"`
+	Size      int    `json:"size"`
+	Framerate int    `json:"fps"`
+}
+
+type DatasetsInfo map[string]DatasetInfo
+
+type SourceConfig struct {
+	OriginalFramerate  int
+	InferenceFramerate int
+	UploadingFramerate int
+	InfSamplePos       []int
+	RetSamplePos       []int
 }

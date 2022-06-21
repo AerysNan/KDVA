@@ -17,6 +17,7 @@ var (
 	id     = kingpin.Flag("id", "edge ID").Short('i').Required().Int()
 	port   = kingpin.Flag("port", "listen port of edge server").Short('p').Default("8084").String()
 	dir    = kingpin.Flag("dir", "work directory").Short('d').Required().String()
+	config = kingpin.Flag("config", "configuration file of cloud server").Short('c').Default("configs.json").String()
 	worker = kingpin.Flag("worker", "address of inference worker").Short('w').Default("0.0.0.0:8086").String()
 	cloud  = kingpin.Flag("cloud", "address of training cloud").Short('c').Default("0.0.0.0:8088").String()
 	debug  = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
@@ -41,7 +42,7 @@ func main() {
 	defer cloudConnection.Close()
 	cloudClient := pc.NewCloudForEdgeClient(cloudConnection)
 	listenAddress := fmt.Sprintf("0.0.0.0:%s", *port)
-	edgeServer, err := edge.NewEdge(*id, listenAddress, *dir, workerClient, cloudClient)
+	edgeServer, err := edge.NewEdge(*id, listenAddress, *dir, *config, workerClient, cloudClient)
 	if err != nil {
 		logrus.WithError(err).Fatalf("Failed to create edge server")
 	}

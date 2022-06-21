@@ -3,9 +3,6 @@ option go_package = "./;pc";
 
 service CloudForEdge{
   rpc AddEdge (AddEdgeRequest) returns (AddEdgeResponse) {}
-  rpc AddSource (CloudAddSourceRequest) returns (CloudAddSourceResponse) {}
-  rpc RemoveEdge (RemoveEdgeRequest) returns (RemoveEdgeResponse) {}
-  rpc RemoveSource(CloudRemoveSourceRequest) returns (CloudRemoveSourceResponse) {}
   rpc SendFrame (EdgeSendFrameRequest) returns (EdgeSendFrameResponse) {}
 }
 
@@ -17,20 +14,6 @@ message AddEdgeRequest {
 
 message AddEdgeResponse {}
 
-message CloudAddSourceRequest {
-  int64 edge = 1;
-  int64 source = 2;
-}
-
-message CloudAddSourceResponse {}
-
-message CloudRemoveSourceRequest {
-  int64 edge = 1;
-  int64 source = 2;
-}
-
-message CloudRemoveSourceResponse {}
-
 message EdgeSendFrameRequest {
   int64 edge = 1;
   int64 source = 2;
@@ -39,9 +22,3 @@ message EdgeSendFrameRequest {
 }
 
 message EdgeSendFrameResponse {}
-
-message RemoveEdgeRequest {
-  int64 edge = 1;
-}
-
-message RemoveEdgeResponse {}
