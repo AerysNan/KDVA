@@ -11,5 +11,5 @@ gen:
 	done
 build:
 	for bin in $(BINS) ; do \
-		go build -o cmd/$$bin/$$bin cmd/$$bin/main.go ; \
+		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o cmd/$$bin/$$bin cmd/$$bin/main.go ; \
 	done

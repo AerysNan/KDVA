@@ -1,0 +1,19 @@
+version: "3.9"  # optional since v1.27.0
+services:
+  cloud:
+    build: ./src/cmd/cloud
+    command: /cloud --help
+  edge:
+    build: ./src/cmd/edge
+    command: /edge --help
+  source:
+    build: ./src/cmd/source
+    command: /source --help
+  trainer:
+    build: ./src/trainer
+    command: python main.py --help
+    runtime: nvidia
+  worker:
+    build: ./src/worker
+    command: python main.py --help
+    runtime: nvidia

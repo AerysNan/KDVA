@@ -19,7 +19,7 @@ var (
 	dir    = kingpin.Flag("dir", "work directory").Short('d').Required().String()
 	config = kingpin.Flag("config", "configuration file of cloud server").Short('c').Default("configs.json").String()
 	worker = kingpin.Flag("worker", "address of inference worker").Short('w').Default("0.0.0.0:8086").String()
-	cloud  = kingpin.Flag("cloud", "address of training cloud").Short('c').Default("0.0.0.0:8088").String()
+	cloud  = kingpin.Flag("cloud", "address of training cloud").Short('a').Default("0.0.0.0:8088").String()
 	debug  = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
 
