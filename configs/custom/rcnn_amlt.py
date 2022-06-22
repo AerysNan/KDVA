@@ -1,4 +1,4 @@
-_base_ = './rcnn.py'
+_base_ = './rcnn_base.py'
 # model settings
 data = dict(
     test=dict(

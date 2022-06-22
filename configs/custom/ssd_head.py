@@ -1,5 +1,5 @@
 _base_ = [
-    './ssd.py'
+    './ssd_base.py'
 ]
 
 model = dict(

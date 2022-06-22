@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--student-checkpoint', '-sk', type=str, help='student model checkpoint', required=True)
     parser.add_argument('--teacher-config', '-tc', type=str, help='teacher model configuration', required=True)
     parser.add_argument('--student-config', '-sc', type=str, help='student model configuration', required=True)
-    parser.add_argument('--emulated', '-e', action='store_true', help='run trainer in emulated mode')
+    parser.add_argument('--emulation-config', '-e', type=str, help='emulation configuration', default=None)
     parser.add_argument('--device', '-d', type=str, help='device', default='cuda:0')
     parser.add_argument('--port', '-p', type=str, default='8089', help='listening port')
     args = parser.parse_args()

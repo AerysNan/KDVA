@@ -1,0 +1,26 @@
+{
+  "n_edges": 2,
+  "n_sources_per_edge": 6,
+  "edge_bottleneck_fps": 60,
+  "uplink_fps": 100,
+  "retrain_window": 3600,
+  "retrain_cfgs": {
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+    "6": 6
+  },
+  "inference_cfgs": {
+    "0": 5,
+    "1": 10,
+    "2": 15,
+    "3": 20,
+    "4": 25,
+    "5": 30
+  },
+  "profile_path": "",
+  "original_framerate": 30
+}

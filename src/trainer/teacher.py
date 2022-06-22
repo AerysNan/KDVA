@@ -6,7 +6,6 @@ from collections import defaultdict
 import logging
 import shutil
 import pickle
-import torch
 import time
 import json
 import copy
@@ -17,7 +16,7 @@ import os
 import trainer_pb2
 import trainer_pb2_grpc
 from rwlock import RWLock
-
+from template import TEMPLATE
 
 LOCK = RWLock()
 
@@ -25,17 +24,23 @@ ANNO_DIR = 'annos'
 LABEL_DIR = 'labels'
 FRAME_DIR = 'frames'
 MODEL_DIR = 'models'
+RETRAIN_DIR = 'retrains'
+
+IMG_HEIGHT = 720
+IMG_WIDTH = 1280
 
 
 class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
-    def __init__(self, teacher_checkpoint, teacher_config, student_checkpoint, student_config, emulated, device, ** _):
+    def __init__(self, teacher_checkpoint, teacher_config, student_checkpoint, student_config, emulation_config, device, ** _):
         self.frame_dict = defaultdict(lambda: [])
         self.gpu_index = 0
         self.teacher_config = mmcv.Config.fromfile(teacher_config)
         self.student_config = mmcv.Config.fromfile(student_config)
         self.teacher_checkpoint = teacher_checkpoint
         self.student_checkpoint = student_checkpoint
-        self.emulated = emulated
+        if emulation_config is not None:
+            with open(emulation_config) as f:
+                self.emulation_config = json.load(f)
         self.device = device
         self.teacher_model = init_detector(self.teacher_config, self.teacher_checkpoint, device=self.device)
         self.student_dict = {}
@@ -72,41 +77,37 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         return trainer_pb2.CloudSendFrameResponse()
 
     def TriggerRetrain(self, request, _):
+        LOCK.w_acquire()
+        indices = copy.deepcopy(self.frame_dict[(request.edge, request.source)])
+        self.frame_dict[(request.edge, request.source)] = []
+        LOCK.w_release()
+        framerate = round(len(indices) / self.emulation_config['retrain_window'] * self.emulation_config['original_framerate'])
         if self.emulated:
             with open(self.emulation_config['profile_path'], 'rb') as f:
                 profile = pickle.load(f)[(request.edge, request.source)][:, :, request.version]
-            LOCK.r_acquire()
-            indices = copy.deepcopy(self.frame_dict[(request.edge, request.source)])
-            framerate = len(indices) / self.emulation_config['window_size'] * self.emulation_config['original_framerate']
-            self.frame_dict[(request.edge, request.source)] = []
-            LOCK.r_release()
-            config = self.framerate_to_retrain_config(framerate)
-            shutil.copy(f'{self.emulation_config["model_path"]}/{request.edge}-{request.source}-{request.version}-{config}.pth', self.get_model_dir(request.edge, request.source, request.version))
-            time.sleep(self.emulation_config['training_delay'])
+            f2c = {}
+            for c in self.emulation_config['retrain_cfgs']:
+                f2c[self.emulation_config['retrain_cfgs'][c]] = c
+            framerate = max(min(framerate, max(f2c)), min(f2c))
+            logging.info(f'Estimated framerate {request.source} edge {request.edge} is {framerate} FPS')
+            config = f2c[framerate]
+            shutil.copyfile(f'{self.emulation_config["model_path"]}/{request.edge}-{request.source}-{request.version}-{config}.pth', self.get_model_dir(request.edge, request.source, request.version))
+            # time.sleep(self.emulation_config['training_delay'])
             return self.convert_profile(profile)
-
-        LOCK.w_acquire()
-        indices = copy.deepcopy(self.frame_dict[(request.edge, request.source)])
-        if len(indices) < RETRAIN_THRESHOLD:
-            LOCK.w_release()
-            # TODO: fill in retrain profile
+        if framerate < self.emulation_config['retrain_cfgs'][1]:
+            logging.info(f'Not enough training samples for {request.source} edge {request.edge}, skip training')
             return trainer_pb2.TriggerRetrainResponse(profile=None, updated=False)
-        self.frame_dict[(request.edge, request.source)] = []
-        LOCK.w_release()
         template = self.generate_annotation(request.edge, request.source, indices)
         retrain_dir = self.get_retrain_dir(request.edge, request.source, request.version)
         os.makedirs(retrain_dir, exist_ok=True)
-        with open(f'{retrain_dir}/{TEMPLATE_FILE}', 'w') as f:
+        anno_file = os.path.join(retrain_dir, 'anno.json')
+        with open(anno_file, 'w') as f:
             json.dump(template, f)
         cfg = copy.deepcopy(self.student_config)
-        cfg.data.train.ann_file = f'{retrain_dir}/{TEMPLATE_FILE}'
+        cfg.data.train.ann_file = anno_file
         cfg.data.train.img_prefix = ''
         cfg.log_level = 'WARN'
         cfg.work_dir = retrain_dir
-        os.makedirs(cfg.work_dir, exist_ok=True)
-        cfg.gpu_ids = self.gpu_dict[(request.edge, request.source)]
-        cfg.seed = 0
-        set_random_seed(cfg.seed, True)
         dataset = build_dataset(cfg.data.train)
         model = build_detector(
             cfg.model,
@@ -129,26 +130,25 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         return init_detector(self.student_config, self.student_checkpoint, device=self.device)
 
     def get_result_dir(self, edge, source, index):
-        return f'{self.work_dir}/{ANNOTATION_DIR}/{edge}-{source}-{index}.pkl'
+        return os.path.join(self.work_dir, ANNO_DIR, f'{edge}-{source}-{index}.pkl')
 
     def get_frame_dir(self, edge, source, index):
-        return f'{self.work_dir}/{FRAME_DIR}/{edge}-{source}-{index:06d}.jpg'
+        return os.path.join(self.work_dir, FRAME_DIR, f'{edge}-{source}-{index}.jpg')
 
     def get_label_dir(self, edge, source, index):
-        return f'{self.work_dir}/{LABEL_DIR}/{edge}-{source}-{index}.pkl'
+        return os.path.join(self.work_dir, LABEL_DIR, f'{edge}-{source}-{index}.pkl')
 
     def get_model_dir(self, edge, source, version):
-        return f'{self.work_dir}/{MODEL_DIR}/{edge}-{source}-{version}.pth'
+        return os.path.join(self.work_dir, MODEL_DIR, f'{edge}-{source}-{version}.pth')
 
     def get_retrain_dir(self, edge, source, version):
-        return f'{self.work_dir}/{RETRAIN_DIR}/{edge}-{source}-{version}'
+        return os.path.join(self.work_dir, RETRAIN_DIR, f'{edge}-{source}-{version}')
 
     def generate_annotation(self, edge, source, indices, threshold=0.5):
         indices.sort()
-        with open(TEMPLATE_FILE) as f:
-            template = json.load(f)
+        t = copy.deepcopy(TEMPLATE)
         for i, index in enumerate(indices):
-            template['images'].append({
+            t['images'].append({
                 'id': i,
                 'file_name': self.get_frame_dir(edge, source, index),
                 'height': IMG_HEIGHT,
@@ -162,7 +162,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
                     if bbox[4] < threshold:
                         continue
                     converted = self.xyxy2xywh(bbox.tolist())
-                    template['annotations'].append({
+                    t['annotations'].append({
                         'id': uid,
                         'image_id': i,
                         'category_id': j,
@@ -171,10 +171,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
                         'area': converted[2] * converted[3]
                     })
                     uid += 1
-        return template
+        return t
 
     def xyxy2xywh(self, bbox):
         return [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
-
-    def framerate_to_retrain_config(self, framerate):
-        return round(framerate)

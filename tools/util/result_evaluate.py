@@ -1,4 +1,4 @@
-from data_split import generate_sample_position
+from .data_split import generate_sample_position
 
 from mmdet.datasets import build_dataset
 from mmcv import Config
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--img-prefix', '-p', help='image prefix', type=str, required=True)
     parser.add_argument('--downsample', '-d', help='downsample rate', type=str, default=None)
     parser.add_argument('--anno-file', '-a', help='annotation file path', type=str, required=True)
-    parser.add_argument('--config', '-c', help='test config file path', default='configs/custom/ssd.py')
+    parser.add_argument('--config', '-c', help='test config file path', default='configs/custom/ssd_base.py')
     args = parser.parse_args()
     if args.downsample is not None:
         downsample = args.downsample.split('/')

@@ -10,7 +10,7 @@ do
     --n-window 30 \
     --train-rate 1 \
     --val-rate 0.1 \
-    --cfg configs/custom/ssd.py \
+    --cfg configs/custom/ssd_base.py \
     --eval-template {}.eval.pkl \
     --n-process 8 \
     --framerates 5 10 15 20 25 30

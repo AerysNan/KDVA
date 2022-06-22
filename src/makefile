@@ -11,7 +11,5 @@ gen:
 	done
 build:
 	for bin in $(BINS) ; do \
-		go build -o ../bin/$$bin cmd/$$bin/main.go ; \
+		go build -o cmd/$$bin/$$bin cmd/$$bin/main.go ; \
 	done
-clean:
-	rm -rf ../dump

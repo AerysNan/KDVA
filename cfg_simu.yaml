@@ -17,46 +17,77 @@ data:
   remote_dir: dataset/KDVA/nydata
 
 jobs:
-- name: kdva_train_test_t0.4
+- name: train_1_fps
   sku: G1
   command:
   - python tools/full_pipeline.py \
-    --datasets ut_1 \
-    --resutl-template {}.r.pkl \
-    --anno-threshold 0.4 \
-    --n-window 30 \
-    --train-rate 1 \
-    --val-rate 0.1 \
-    --cfg configs/custom/ssd.py \
-    --eval-template {}.eval.pkl \
-    --n-process 4 \
-    --framerates 5 10 15 20 25 30
-- name: kdva_train_test_t0.5
-  sku: G1
-  command:
-  - python tools/full_pipeline.py \
-    --datasets ut_1 \
-    --resutl-template {}.r.pkl \
+    --datasets detrac_1 detrac_2 detrac_3 detrac_4 detrac_5 detrac_6 \
+    --result-template {}.r.pkl \
     --anno-threshold 0.5 \
-    --n-window 30 \
+    --n-window 8 \
     --train-rate 1 \
     --val-rate 0.1 \
-    --cfg configs/custom/ssd.py \
+    --cfg configs/custom/ssd_base.py \
     --eval-template {}.eval.pkl \
     --n-process 4 \
-    --framerates 5 10 15 20 25 30
-- name: kdva_train_test_t0.6
+    --framerates 5 10 15 20 25
+
+- name: train_2_fps
   sku: G1
   command:
   - python tools/full_pipeline.py \
-    --datasets ut_1 \
-    --resutl-template {}.r.pkl \
-    --anno-threshold 0.6 \
-    --n-window 30 \
-    --train-rate 1 \
+    --datasets detrac_1 detrac_2 detrac_3 detrac_4 detrac_5 detrac_6 \
+    --result-template {}.r.pkl \
+    --anno-threshold 0.5 \
+    --n-window 8 \
+    --train-rate 2 \
     --val-rate 0.1 \
-    --cfg configs/custom/ssd.py \
+    --cfg configs/custom/ssd_base.py \
     --eval-template {}.eval.pkl \
     --n-process 4 \
-    --framerates 5 10 15 20 25 30
+    --framerates 5 10 15 20 25
 
+- name: train_3_fps
+  sku: G1
+  command:
+  - python tools/full_pipeline.py \
+    --datasets detrac_1 detrac_2 detrac_3 detrac_4 detrac_5 detrac_6 \
+    --result-template {}.r.pkl \
+    --anno-threshold 0.5 \
+    --n-window 8 \
+    --train-rate 3 \
+    --val-rate 0.1 \
+    --cfg configs/custom/ssd_base.py \
+    --eval-template {}.eval.pkl \
+    --n-process 4 \
+    --framerates 5 10 15 20 25
+
+- name: train_4_fps
+  sku: G1
+  command:
+  - python tools/full_pipeline.py \
+    --datasets detrac_1 detrac_2 detrac_3 detrac_4 detrac_5 detrac_6 \
+    --result-template {}.r.pkl \
+    --anno-threshold 0.5 \
+    --n-window 8 \
+    --train-rate 4 \
+    --val-rate 0.1 \
+    --cfg configs/custom/ssd_base.py \
+    --eval-template {}.eval.pkl \
+    --n-process 4 \
+    --framerates 5 10 15 20 25
+
+- name: train_5_fps
+  sku: G1
+  command:
+  - python tools/full_pipeline.py \
+    --datasets detrac_1 detrac_2 detrac_3 detrac_4 detrac_5 detrac_6 \
+    --result-template {}.r.pkl \
+    --anno-threshold 0.5 \
+    --n-window 8 \
+    --train-rate 5 \
+    --val-rate 0.1 \
+    --cfg configs/custom/ssd_base.py \
+    --eval-template {}.eval.pkl \
+    --n-process 4 \
+    --framerates 5 10 15 20 25

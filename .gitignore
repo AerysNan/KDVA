@@ -7,3 +7,7 @@ tmp*
 *pb2_grpc.py
 
 .amltconfig
+
+src/cmd/cloud/cloud
+src/cmd/edge/edge
+src/cmd/source/source

@@ -53,7 +53,7 @@ class Student(worker_pb2_grpc.WorkerForEdgeServicer):
         return os.path.join(self.work_dir, MODEL_DIR, f'{source}-{version}.pth')
 
     def get_frame_dir(self, source, index):
-        return os.path.join(self.work_dir, FRAME_DIR, f'{source}-{index:06d}.jpg')
+        return os.path.join(self.work_dir, FRAME_DIR, f'{source}-{index}.jpg')
 
     def get_result_dir(self, source, index):
-        return os.path.join(self.work_dir, RESULT_DIR, f'{source}-{index:06d}.jpg')
+        return os.path.join(self.work_dir, RESULT_DIR, f'{source}-{index}.pkl')

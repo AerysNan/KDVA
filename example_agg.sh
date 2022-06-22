@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=$1 AMLT_OUTPUT_DIR=$2 python tools/full_pipeline.py \
   --agg-name agg \
   --aggregation 3 \
   --cfg configs/custom/ssd_head.py \
-  --backbone-cfg configs/custom/ssd.py \
+  --backbone-cfg configs/custom/ssd_base.py \
   --eval-template {}.eval.pkl \
   --n-process 4 \
   --framerates 5 10 15 20 25 30
