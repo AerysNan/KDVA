@@ -1,16 +1,16 @@
-version: "3.9"  # optional since v1.27.0
 services:
 
   source:
-    build: ./src/cmd/source
+    image: "aerysnan/kdva_source:latest"
     volumes:
       - ${AMLT_DATA_DIR}:/data
+      - ${PWD}/cfg_data.json:/cfg_data.json
     command: /source --id 1 --dataset detrac_1 --dir /data --edge localhost:8080 --debug
     depends_on:
       - edge
 
   edge:
-    build: ./src/cmd/edge
+    image: "aerysnan/kdva_edge:latest"
     ports:
       - 8080:8080
     volumes:
@@ -22,7 +22,7 @@ services:
 
 
   cloud:
-    build: ./src/cmd/cloud
+    image: "aerysnan/kdva_cloud:latest"
     ports:
       - 8083:8083
     volumes:
@@ -32,7 +32,7 @@ services:
       - trainer
 
   worker:
-    build: ./src/worker
+    image: "aerysnan/kdva_worker:latest"
     ports:
       - 8081:8081
     volumes: 
@@ -42,7 +42,7 @@ services:
     runtime: nvidia
 
   trainer:
-    build: ./src/trainer
+    image: "aerysnan/kdva_trainer:latest"
     ports:
       - 8082:8082
     volumes: 
