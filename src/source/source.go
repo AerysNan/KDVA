@@ -30,10 +30,10 @@ type Source struct {
 	client pe.EdgeForSourceClient
 }
 
-func NewSource(id int, dataset string, dataDir string, client pe.EdgeForSourceClient) (*Source, error) {
+func NewSource(id int, dataset string, dataDir string, config string, client pe.EdgeForSourceClient) (*Source, error) {
 	// load dataset information file
 	var datasetsInfo util.DatasetsInfo
-	file, err := os.Open("cfg_data.json")
+	file, err := os.Open(config)
 	if err != nil {
 		return nil, err
 	}
@@ -60,21 +60,18 @@ func NewSource(id int, dataset string, dataDir string, client pe.EdgeForSourceCl
 		client: client,
 	}
 	// connect source to edge
-	for i := 0; i < 5; i++ {
-		response, err := client.AddSource(context.Background(), &pe.EdgeAddSourceRequest{
-			Source:    int64(id),
-			Framerate: int64(datasetInfo.Framerate),
-			Dataset:   s.Config.Name,
-		})
-		if err == nil {
-			s.Edge = int(response.Edge)
-			logrus.Infof("Connect to edge %d", response.Edge)
-			s.LastMonitor = time.Now()
-			return s, nil
-		}
-		time.Sleep(time.Second * 2)
+	response, err := client.AddSource(context.Background(), &pe.EdgeAddSourceRequest{
+		Source:    int64(id),
+		Framerate: int64(datasetInfo.Framerate),
+		Dataset:   s.Config.Name,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	s.Edge = int(response.Edge)
+	logrus.Infof("Connect to edge %d", response.Edge)
+	s.LastMonitor = time.Now()
+	return s, nil
 }
 
 func (s *Source) Start() {
@@ -85,11 +82,11 @@ func (s *Source) Start() {
 func (s *Source) monitorLoop() {
 	timer := time.NewTicker(util.MONITOR_INTERVAL)
 	for {
+		<-timer.C
 		framerate := float64(s.Record.Sent-s.Record.LastSent) / time.Since(s.LastMonitor).Seconds()
 		logrus.Infof("Sent: %d total: %d, FPS: %.3f", s.Record.Sent-s.Record.LastSent, s.Record.Sent, framerate)
 		s.LastMonitor = time.Now()
 		s.Record.LastSent = s.Record.Sent
-		<-timer.C
 	}
 }
 

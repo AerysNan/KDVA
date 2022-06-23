@@ -20,8 +20,9 @@ var (
 )
 
 const (
-	MONITOR_INTERVAL = time.Millisecond * 1000
-	TIMEOUT_DURATION = time.Millisecond * 100
+	MONITOR_INTERVAL   = time.Millisecond * 1000
+	CONNECTION_TIMEOUT = time.Second * 20
+	QUEUE_TIMEOUT      = time.Millisecond * 100
 )
 
 type SimulationConfig struct {

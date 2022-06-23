@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"vakd/cloud"
 	pc "vakd/proto/cloud"
 	pt "vakd/proto/trainer"
+	"vakd/util"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -26,7 +28,9 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 		logrus.Debug("Set log level to debug")
 	}
-	trainerConnection, err := grpc.Dial(*trainer, grpc.WithInsecure())
+	ctx, cancel := context.WithTimeout(context.Background(), util.CONNECTION_TIMEOUT)
+	defer cancel()
+	trainerConnection, err := grpc.DialContext(ctx, *trainer, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		logrus.WithError(err).Fatalf("Connect to training server %s failed", *trainer)
 	}

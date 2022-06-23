@@ -161,7 +161,7 @@ func (e *Edge) retrainLoop() {
 				if weightMap[id] < w*gcd || len(s.retQ) == 0 {
 					continue
 				}
-				timer := time.NewTimer(util.TIMEOUT_DURATION)
+				timer := time.NewTimer(util.QUEUE_TIMEOUT)
 				select {
 				case frame := <-s.retQ:
 					logrus.Debugf("Upload frame %d of source %d", frame.Index, frame.Source)
@@ -215,7 +215,7 @@ func (e *Edge) inferenceLoop() {
 				if weightMap[id] < w || len(s.infQ) == 0 {
 					continue
 				}
-				timer := time.NewTimer(util.TIMEOUT_DURATION)
+				timer := time.NewTimer(util.QUEUE_TIMEOUT)
 				select {
 				case frame := <-s.infQ:
 					logrus.Debugf("Infer frame %d of source %d", frame.Index, frame.Source)

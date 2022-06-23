@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"vakd/edge"
 	pc "vakd/proto/cloud"
 	pe "vakd/proto/edge"
 	pw "vakd/proto/worker"
+	"vakd/util"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -29,15 +31,19 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 		logrus.Debug("Set log level to debug")
 	}
-	inferenceConnection, err := grpc.Dial(*worker, grpc.WithInsecure())
+	ctx, cancel := context.WithTimeout(context.Background(), util.CONNECTION_TIMEOUT)
+	defer cancel()
+	inferenceConnection, err := grpc.DialContext(ctx, *worker, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
 		logrus.WithError(err).Fatalf("Failed to connect to infernce server %s", *worker)
 	}
 	defer inferenceConnection.Close()
 	workerClient := pw.NewWorkerForEdgeClient(inferenceConnection)
-	cloudConnection, err := grpc.Dial(*cloud, grpc.WithInsecure())
+	ctx, cancel = context.WithTimeout(context.Background(), util.CONNECTION_TIMEOUT)
+	defer cancel()
+	cloudConnection, err := grpc.DialContext(ctx, *cloud, grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		logrus.WithError(err).Fatalf("Failed to connect to cloud server %s", *cloud)
+		logrus.WithError(err).Fatalf("Failed to connect to cloud server %s 5 times", *cloud)
 	}
 	defer cloudConnection.Close()
 	cloudClient := pc.NewCloudForEdgeClient(cloudConnection)
