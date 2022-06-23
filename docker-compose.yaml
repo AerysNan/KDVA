@@ -1,53 +1,52 @@
 services:
-
+  # no port required
   source:
     image: "aerysnan/kdva_source:latest"
     volumes:
-      - ${AMLT_DATA_DIR}:/data
       - ${PWD}/cfg_data.json:/cfg_data.json
-    command: /source --id 1 --dataset detrac_1 --dir /data --config /cfg_data.json --edge localhost:8080 --debug
+      - ${AMLT_DATA_DIR}:/data
+    command: /source --id 1 --dataset detrac_1 --dir /data/data --edge edge:8080 --config /cfg_data.json --debug
     depends_on:
       - edge
-
+  # edge at 8080
   edge:
     image: "aerysnan/kdva_edge:latest"
     ports:
       - 8080:8080
     volumes:
       - ${PWD}/cfg_arch.json:/cfg.json
-    command: /edge --id 1 --port 8080 --dir /dump --config /cfg.json --worker localhost:8081 --cloud localhost:8083 --debug
+    command: /edge --id 1 --port 8080 --dir /dump --config /cfg.json --cloud cloud:8081 --worker worker:8082 --debug
     depends_on:
       - cloud
       - worker
-
-
+  # cloud at 8081
   cloud:
     image: "aerysnan/kdva_cloud:latest"
     ports:
-      - 8083:8083
+      - 8081:8081
     volumes:
       - ${PWD}/cfg_arch.json:/cfg.json
-    command: /cloud --port 8082 --work-dir /dump --config /cfg.json --trainer localhost:8082 --debug
+    command: /cloud --port 8081 --work-dir /dump --config /cfg.json --trainer trainer:8083 --debug
     depends_on:
       - trainer
-
+  # worker at 8082
   worker:
     image: "aerysnan/kdva_worker:latest"
-    ports:
-      - 8081:8081
-    volumes: 
-      - ${PWD}/configs:/configs
-      - ${AMLT_DATA_DIR}:/data
-    command: python main.py --config /configs/custom/ssd_base.py --checkpoint /data/models/ssd.pth --port 8081 --device cuda:0
-    runtime: nvidia
-
-  trainer:
-    image: "aerysnan/kdva_trainer:latest"
     ports:
       - 8082:8082
     volumes: 
       - ${PWD}/configs:/configs
+      - ${AMLT_DATA_DIR}:/data
+    command: python main.py --config /configs/custom/ssd_base.py --checkpoint /data/models/ssd.pth --port 8082 --device cuda:0
+    runtime: nvidia
+  # trainer at 8083
+  trainer:
+    image: "aerysnan/kdva_trainer:latest"
+    ports:
+      - 8083:8083
+    volumes: 
+      - ${PWD}/configs:/configs
       - ${PWD}/cfg_arch.json:/cfg_emu.json
       - ${AMLT_DATA_DIR}:/data
-    command: python main.py --teacher-config /configs/custom/rcnn_base.py --student-config /configs/custom/ssd_base.py --teacher-checkpoint /data/models/r101.pth --student-checkpoint /data/models/ssd.pth --emulation-config /cfg_emu.json --device cuda:1 --port 8082
+    command: python main.py --teacher-config /configs/custom/rcnn_base.py --student-config /configs/custom/ssd_base.py --teacher-checkpoint /data/models/r101.pth --student-checkpoint /data/models/ssd.pth --emulation-config /cfg_emu.json --device cuda:1 --port 8083
     runtime: nvidia
