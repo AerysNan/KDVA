@@ -12,9 +12,9 @@ import (
 
 var (
 	id      = kingpin.Flag("id", "source ID").Short('i').Required().Int()
-	dataset = kingpin.Flag("dataset", "dataset name of source server").Short('d').Required().String()
+	dataset = kingpin.Flag("dataset", "dataset name of source").Short('d').Required().String()
 	datadir = kingpin.Flag("dir", "dataset directory").Short('p').Default("data").String()
-	edge    = kingpin.Flag("edge", "address of edge server").Short('e').Default("0.0.0.0:8084").String()
+	edge    = kingpin.Flag("edge", "address of edge").Short('e').Default("0.0.0.0:8084").String()
 	debug   = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
 

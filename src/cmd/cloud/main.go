@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	port    = kingpin.Flag("port", "listen port of cloud server").Short('p').Default("8088").String()
-	workDir = kingpin.Flag("work-dir", "work directory of cloud server").Short('d').Required().String()
-	config  = kingpin.Flag("config", "configuration file of cloud server").Short('c').Default("configs.json").String()
+	port    = kingpin.Flag("port", "listen port for cloud").Short('p').Default("8088").String()
+	workDir = kingpin.Flag("work-dir", "work directory of cloud").Short('d').Required().String()
+	config  = kingpin.Flag("config", "simulation configuration file").Short('c').Default("configs.json").String()
 	trainer = kingpin.Flag("trainer", "address of trainer").Short('t').Default("0.0.0.0:8089").String()
 	debug   = kingpin.Flag("debug", "use debug level of logging").Default("false").Bool()
 )
