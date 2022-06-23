@@ -85,13 +85,13 @@ func NewEdge(id int, address string, workDir string, config string, workerClient
 		return nil, err
 	}
 	// connect to worker
+	e.WorkDir = workDir
 	_, err = workerClient.InitWorker(context.Background(), &pw.InitWorkerRequest{
 		WorkDir: e.WorkDir,
 	})
 	if err != nil {
 		return nil, err
 	}
-	e.WorkDir = workDir
 	return e, nil
 }
 
@@ -266,6 +266,7 @@ func (e *Edge) AddSource(ctx context.Context, request *pe.EdgeAddSourceRequest) 
 	}
 	logrus.Debugf("Model added for source %d", s.ID)
 	cResource, nResource := e.Config.EdgeFPS, e.Config.UplinkFPS
+	s.Config.OriginalFramerate = int(request.Framerate)
 	s.Config.InferenceFramerate = int(cResource) / e.Config.NSourcesPerEdge
 	s.Config.UploadingFramerate = int(nResource) / e.Config.NSourcesPerEdge
 	s.Config.InfSamplePos = util.GenerateSamplePosition(s.Config.InferenceFramerate, s.Config.OriginalFramerate, 0)

@@ -1,7 +1,7 @@
 {
   "n_edges": 2,
   "n_sources_per_edge": 6,
-  "edge_bottleneck_fps": 60,
+  "edge_fps": 60,
   "uplink_fps": 100,
   "retrain_window": 3600,
   "retrain_cfgs": {

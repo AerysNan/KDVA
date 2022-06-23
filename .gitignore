@@ -1,5 +1,3 @@
-bin/
-cache/
 __pycache__/
 tmp*
 *.pb.go
@@ -11,3 +9,6 @@ tmp*
 src/cmd/cloud/cloud
 src/cmd/edge/edge
 src/cmd/source/source
+
+cfg_*
+!cfg_*_example.*

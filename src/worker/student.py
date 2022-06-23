@@ -26,7 +26,11 @@ class Student(worker_pb2_grpc.WorkerForEdgeServicer):
 
     def InitWorker(self, request, _):
         self.work_dir = request.work_dir
-        logging.info(f'Set work directory to {request.work_dir}')
+        print(request)
+        logging.info(f'Work directory set to {self.work_dir}')
+        os.makedirs(os.path.join(self.work_dir, RESULT_DIR), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, FRAME_DIR), exist_ok=True)
+        os.makedirs(os.path.join(self.work_dir, MODEL_DIR), exist_ok=True)
         return worker_pb2.InitWorkerResponse()
 
     def UpdateModel(self, request, _):

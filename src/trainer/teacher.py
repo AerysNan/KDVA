@@ -41,6 +41,8 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         if emulation_config is not None:
             with open(emulation_config) as f:
                 self.emulation_config = json.load(f)
+        else:
+          self.emulation_config = None
         self.device = device
         self.teacher_model = init_detector(self.teacher_config, self.teacher_checkpoint, device=self.device)
         self.student_dict = {}
@@ -55,7 +57,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         return trainer_pb2.InitTrainerResponse()
 
     def SendFrame(self, request, _):
-        if self.emulated:
+        if self.emulation_config is not None:
             return trainer_pb2.CloudSendFrameResponse()
         model_key = (request.edge, request.source)
         if model_key not in self.student_dict:
@@ -82,7 +84,7 @@ class Trainer(trainer_pb2_grpc.TrainerForCloudServicer):
         self.frame_dict[(request.edge, request.source)] = []
         LOCK.w_release()
         framerate = round(len(indices) / self.emulation_config['retrain_window'] * self.emulation_config['original_framerate'])
-        if self.emulated:
+        if self.emulation_config is not None:
             with open(self.emulation_config['profile_path'], 'rb') as f:
                 profile = pickle.load(f)[(request.edge, request.source)][:, :, request.version]
             f2c = {}
