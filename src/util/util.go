@@ -23,15 +23,22 @@ func GCDList(l []int) int {
 }
 
 func GenerateSamplePosition(sampleCount int, sampleInterval int, offset int) []int {
-	sampleWindow, count := make([]int, sampleCount), 0
-	for count < sampleInterval {
-		for i := 0; i < sampleCount; i++ {
-			sampleWindow[i]++
+	gcd := GCD(sampleCount, sampleInterval)
+	reducedSampleCount, reducedSampleInterval := sampleCount/gcd, sampleInterval/gcd
+
+	reducedSampleWindow, count := make([]int, reducedSampleCount), 0
+	for count < reducedSampleInterval {
+		for i := 0; i < reducedSampleCount; i++ {
+			reducedSampleWindow[i]++
 			count++
-			if count == sampleInterval {
+			if count == reducedSampleInterval {
 				break
 			}
 		}
+	}
+	sampleWindow := make([]int, 0)
+	for i := 0; i < gcd; i++ {
+		sampleWindow = append(sampleWindow, reducedSampleWindow...)
 	}
 	samplePosition := []int{offset}
 	for i := 0; i < sampleCount-1; i++ {

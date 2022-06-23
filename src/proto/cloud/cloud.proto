@@ -9,7 +9,12 @@ service CloudForEdge{
 message AddEdgeRequest {
   string address = 1;
   int64 edge = 2;
-  repeated int64 sources = 3;
+  repeated SourceInfo sources = 3;
+}
+
+message SourceInfo{
+  int64 id = 1;
+  int64 original_framerate = 2;
 }
 
 message AddEdgeResponse {}

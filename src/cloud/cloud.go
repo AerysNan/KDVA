@@ -190,13 +190,14 @@ func (c *Cloud) AddEdge(ctx context.Context, request *pc.AddEdgeRequest) (*pc.Ad
 		Sources: make(map[int]*Source),
 	}
 	c.Edges[edge.ID] = edge
-	for _, id := range request.Sources {
-		edge.Sources[int(id)] = &Source{
-			ID:      int(id),
+	for _, s := range request.Sources {
+		edge.Sources[int(s.Id)] = &Source{
+			ID:      int(s.Id),
 			Version: 0,
 			Current: 0,
 			profile: nil,
 			Config: util.SourceConfig{
+				OriginalFramerate:  int(s.OriginalFramerate),
 				InferenceFramerate: c.Config.EdgeFPS / c.Config.NSourcesPerEdge,
 				UploadingFramerate: c.Config.UplinkFPS / c.Config.NSourcesPerEdge / c.Config.NEdges,
 			},

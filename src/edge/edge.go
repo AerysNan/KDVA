@@ -97,9 +97,12 @@ func NewEdge(id int, address string, workDir string, config string, workerClient
 
 func (e *Edge) Start() {
 	// connect to cloud
-	sources := make([]int64, 0)
-	for id := range e.Sources {
-		sources = append(sources, int64(id))
+	sources := make([]*pc.SourceInfo, 0)
+	for id, source := range e.Sources {
+		sources = append(sources, &pc.SourceInfo{
+			Id:                int64(id),
+			OriginalFramerate: int64(source.Config.OriginalFramerate),
+		})
 	}
 	if _, err := e.cloudClient.AddEdge(context.Background(), &pc.AddEdgeRequest{
 		Address: e.Address,
