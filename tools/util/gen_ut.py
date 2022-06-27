@@ -55,8 +55,8 @@ videos = [
 
 def generate_ut(input_path, output_path, **_):
     os.makedirs(output_path, exist_ok=True)
-    for i, location_videos in videos:
-        for j, video in location_videos:
+    for i, location_videos in enumerate(videos):
+        for j, video in enumerate(location_videos):
             dataset_name = f'ut_{j * len(videos) + i + 1}'
             os.makedirs(os.path.join(output_path, dataset_name), exist_ok=True)
             os.system(f'ffmpeg -i {os.path.join(input_path, locations[i], video)} -start_number 0 {os.path.join(output_path, dataset_name)}/$filename%06d.jpg')
