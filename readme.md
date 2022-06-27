@@ -37,7 +37,7 @@ There should be 6 traces `detrac_1~detrac_6` generated under `${LOCAL_DATA_DIR}/
 Place UT dataset under a folder `${UT_DIR}`. Traces from each location are placed under the same child directory, e.g., `${UT_DIR}/Bellevue_116th_NE12th/Bellevue_116th_NE12th__2017-09-10_19-08-25.mp4`. Run:
 
 ```
-python tools/util/gen_detrac.py -i ${UT_DIR} -o ${LOCAL_DATA_DIR}/data
+python tools/util/gen_ut.py -i ${UT_DIR} -o ${LOCAL_DATA_DIR}/data
 ```
 
 There should be 20 datasets `ut_1~ut_20` generated under `${LOCAL_DATA_DIR}/data` (this may take quite long).
