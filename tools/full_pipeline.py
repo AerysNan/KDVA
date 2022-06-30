@@ -1,3 +1,4 @@
+import os
 from pip_prep import pip_preprocess
 from pip_split import pip_split
 from pip_train import pip_train
@@ -21,7 +22,7 @@ def full_pipeline(start=0, **kwargs):
     PIPELINE = [
         ('preprocess', broadcast_wrapper(pip_preprocess)),
         ('split', pip_split),
-        ('train', broadcast_wrapper(pip_train) if kwargs['aggregation'] is None else pip_aggregate),
+        # ('train', broadcast_wrapper(pip_train) if kwargs['aggregation'] is None else pip_aggregate),
         ('test', broadcast_wrapper(pip_test)),
         ('val', broadcast_wrapper(pip_val)),
         ('evaluation', broadcast_wrapper(pip_eval)),
@@ -57,4 +58,6 @@ if __name__ == '__main__':
     parser.add_argument('--n-process', '-np', help='number of concurrent process', type=int, default=4)
     parser.add_argument('--framerates', nargs='+', default=[], help='inference framerate levels used for evaluation')
     args = parser.parse_args()
+    with open(os.path.join(os.environ['AMLT_OUTPUT_DIR'], 'args'), 'w') as f:
+        f.write(str(vars(args)))
     full_pipeline(**args.__dict__)
