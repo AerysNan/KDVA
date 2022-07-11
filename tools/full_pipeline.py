@@ -22,7 +22,7 @@ def full_pipeline(start=0, **kwargs):
     PIPELINE = [
         ('preprocess', broadcast_wrapper(pip_preprocess)),
         ('split', pip_split),
-        # ('train', broadcast_wrapper(pip_train) if kwargs['aggregation'] is None else pip_aggregate),
+        ('train', broadcast_wrapper(pip_train) if kwargs['aggregation'] is None else pip_aggregate),
         ('test', broadcast_wrapper(pip_test)),
         ('val', broadcast_wrapper(pip_val)),
         ('evaluation', broadcast_wrapper(pip_eval)),
